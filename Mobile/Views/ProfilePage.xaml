@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FacePass.Mobile.Views.ProfilePage"
+             Title="My Profile"
+             BackgroundColor="#0D0D0D">
+
+    <VerticalStackLayout Padding="30" Spacing="25" HorizontalOptions="Center">
+        
+        <Frame CornerRadius="60" 
+               HeightRequest="120" 
+               WidthRequest="120" 
+               Padding="0" 
+               IsClippedToBounds="True" 
+               BackgroundColor="#1A1A1A"
+               HorizontalOptions="Center"
+               BorderColor="#333">
+            <Image Source="avatar_placeholder.png" Aspect="AspectFill" />
+        </Frame>
+
+        <VerticalStackLayout Spacing="5" HorizontalOptions="Center">
+            <Label Text="John Doe" 
+                       TextColor="White" 
+                       FontSize="24" 
+                       FontWeight="Bold" 
+                       HorizontalOptions="Center" />
+            <Label Text="john.doe@university.edu" 
+                       TextColor="#88FFFFFF" 
+                       FontSize="14" 
+                       HorizontalOptions="Center" />
+        </VerticalStackLayout>
+
+        <Frame BackgroundColor="#1A1A1A" BorderColor="#333" CornerRadius="12" Padding="20">
+            <VerticalStackLayout Spacing="15">
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Text="Roll Number" TextColor="#88FFFFFF" />
+                    <Label Grid.Column="1" Text="CS-2024-101" TextColor="White" FontWeight="SemiBold" />
+                </Grid>
+                <BoxView HeightRequest="1" Color="#333" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Text="Current Semester" TextColor="#88FFFFFF" />
+                    <Label Grid.Column="1" Text="Spring 2024" TextColor="White" FontWeight="SemiBold" />
+                </Grid>
+            </VerticalStackLayout>
+        </Frame>
+
+        <Button Text="Logout"
+                BackgroundColor="#C62828"
+                TextColor="White"
+                CornerRadius="10"
+                HeightRequest="50"
+                Margin="0,20,0,0" />
+
+    </VerticalStackLayout>
+</ContentPage>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="FacePass.Mobile.AppShell"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:FacePass.Mobile.Views"
+    Shell.FlyoutBehavior="Disabled"
+    Title="FacePass">
+
+    <TabBar>
+        <Tab Title="Dashboard" Icon="dashboard_icon.png">
+            <ShellContent
+                Title="Dashboard"
+                ContentTemplate="{DataTemplate local:DashboardPage}"
+                Route="DashboardPage" />
+        </Tab>
+        <Tab Title="Scan QR" Icon="scanner_icon.png">
+            <ShellContent
+                Title="Scan QR"
+                ContentTemplate="{DataTemplate local:ScannerPage}"
+                Route="ScannerPage" />
+        </Tab>
+        <Tab Title="Profile" Icon="profile_icon.png">
+            <ShellContent
+                Title="Profile"
+                ContentTemplate="{DataTemplate local:ProfilePage}"
+                Route="ProfilePage" />
+        </Tab>
+    </TabBar>
+
+</Shell>

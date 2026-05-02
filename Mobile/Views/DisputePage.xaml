@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FacePass.Mobile.Views.DisputePage"
+             Title="Submit Dispute"
+             BackgroundColor="#0D0D0D">
+
+    <VerticalStackLayout Padding="25" Spacing="20">
+        
+        <Label Text="Something wrong?" 
+                   TextColor="White" 
+                   FontSize="24" 
+                   FontWeight="Bold" />
+        
+        <Label Text="If your attendance was flagged as suspicious or you believe there was an error, please provide a reason below for the teacher to review." 
+                   TextColor="#88FFFFFF" 
+                   FontSize="14" />
+
+        <Frame BackgroundColor="#1A1A1A" BorderColor="#333" Padding="0">
+            <Editor x:Name="DisputeReasonEditor"
+                    Placeholder="Describe the issue (e.g., 'Was in class but camera failed')"
+                    PlaceholderColor="#44FFFFFF"
+                    TextColor="White"
+                    HeightRequest="150"
+                    Margin="10" />
+        </Frame>
+
+        <Button Text="Submit Dispute"
+                BackgroundColor="#1565C0"
+                TextColor="White"
+                CornerRadius="10"
+                HeightRequest="50"
+                FontAttributes="Bold"
+                Clicked="OnSubmitClicked" />
+
+        <Button Text="Cancel"
+                BackgroundColor="Transparent"
+                TextColor="#88FFFFFF"
+                HorizontalOptions="Center"
+                Clicked="OnCancelClicked" />
+
+    </VerticalStackLayout>
+</ContentPage>

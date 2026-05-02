@@ -1,0 +1,69 @@
+<UserControl x:Class="FacePass.Management.Views.TeacherDashboard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#0D0D0D">
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="1*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Live Attendance Feed -->
+        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+            <TextBlock Text="Live Attendance Feed" FontSize="20" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,20"/>
+            <DataGrid x:Name="LiveFeedGrid" Height="500" Background="#111" Foreground="White" 
+                      BorderBrush="#333" RowBackground="#1A1A1A" AlternatingRowBackground="#111"
+                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time" Binding="{Binding Timestamp}" Width="150"/>
+                    <DataGridTextColumn Header="Student" Binding="{Binding StudentName}" Width="*"/>
+                    <DataGridTextColumn Header="Method" Binding="{Binding Method}" Width="100"/>
+                    <DataGridTemplateColumn Header="Status" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Status}" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Status}" Value="present">
+                                                    <Setter Property="Foreground" Value="#00E676"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Status}" Value="suspicious">
+                                                    <Setter Property="Foreground" Value="#FF5252"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+
+        <!-- Sidebar Actions -->
+        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+            
+            <!-- Biometric Registration Card -->
+            <Border Background="#1A1A1A" CornerRadius="10" Padding="15" Margin="0,0,0,20" BorderBrush="#333" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="Student Registration" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,15"/>
+                    <TextBlock Text="Student ID" Foreground="#88FFFFFF" FontSize="12"/>
+                    <TextBox x:Name="RegStudentId" Height="30" Background="#111" Foreground="White" BorderBrush="#444" Margin="0,5,0,15"/>
+                    
+                    <Button Content="Capture Face" Background="#1565C0" Foreground="White" Height="35" Click="CaptureFace_Click"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Manual Override Card -->
+            <Border Background="#1A1A1A" CornerRadius="10" Padding="15" BorderBrush="#333" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="Manual Override" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,15"/>
+                    <Button Content="Mark Present Manually" Background="#333" Foreground="White" Height="35" Click="ManualOverride_Click"/>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </Grid>
+</UserControl>
