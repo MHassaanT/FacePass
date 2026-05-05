@@ -16,7 +16,7 @@ namespace FacePass.Management
             // Role-based view switching
             if (role.ToLower() == "admin")
             {
-                MainContent.Content = new AdminDashboard();
+                MainContent.Content = new AdminDashboard(userId);
             }
             else if (role.ToLower() == "teacher")
             {

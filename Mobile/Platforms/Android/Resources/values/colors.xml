@@ -1,6 +1,36 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="colorPrimary">#512BD4</color>
-    <color name="colorPrimaryDark">#2B0B98</color>
-    <color name="colorAccent">#2B0B98</color>
-</resources>
+<?xml version="1.0" encoding="UTF-8" ?>
+<?xaml-comp compile="true" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+	<!-- FacePass brand colours -->
+	<Color x:Key="Primary">#00E676</Color>
+	<Color x:Key="PrimaryDark">#00B248</Color>
+	<Color x:Key="PrimaryDarkText">#FFFFFF</Color>
+	<Color x:Key="Secondary">#1565C0</Color>
+	<Color x:Key="SecondaryDarkText">#FFFFFF</Color>
+	<Color x:Key="Tertiary">#1A1A1A</Color>
+
+	<Color x:Key="White">#FFFFFF</Color>
+	<Color x:Key="Black">#000000</Color>
+	<Color x:Key="Magenta">#D600AA</Color>
+	<Color x:Key="MidnightBlue">#190649</Color>
+	<Color x:Key="OffBlack">#1f1f1f</Color>
+
+	<Color x:Key="Gray100">#E1E1E1</Color>
+	<Color x:Key="Gray200">#C8C8C8</Color>
+	<Color x:Key="Gray300">#ACACAC</Color>
+	<Color x:Key="Gray400">#919191</Color>
+	<Color x:Key="Gray500">#6E6E6E</Color>
+	<Color x:Key="Gray600">#404040</Color>
+	<Color x:Key="Gray900">#212121</Color>
+	<Color x:Key="Gray950">#141414</Color>
+
+	<SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}"/>
+	<SolidColorBrush x:Key="SecondaryBrush" Color="{StaticResource Secondary}"/>
+	<SolidColorBrush x:Key="TertiaryBrush" Color="{StaticResource Tertiary}"/>
+	<SolidColorBrush x:Key="WhiteBrush" Color="{StaticResource White}"/>
+	<SolidColorBrush x:Key="BlackBrush" Color="{StaticResource Black}"/>
+
+</ResourceDictionary>

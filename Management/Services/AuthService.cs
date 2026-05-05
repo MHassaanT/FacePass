@@ -20,8 +20,15 @@ namespace FacePass.Management.Services
             _http.DefaultRequestHeaders.Add("apikey", _anonKey);
         }
 
-        public async Task<(bool success, string? role, Guid? userId, string? name)> LoginAsync(string email, string password)
+         public async Task<(bool success, string? role, Guid? userId, string? name)> LoginAsync(string email, string password)
         {
+            // --- HARDCODED ADMIN CHECK ---
+            if (email == "admin@facepass.com" && password == "admin123")
+            {
+                return (true, "admin", Guid.Empty, "System Admin");
+            }
+            // -----------------------------
+
             try
             {
                 // 1. Fetch user data by email

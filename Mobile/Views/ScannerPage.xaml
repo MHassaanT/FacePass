@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:zxing="clr-namespace:ZXing.Net.Maui.Controls;assembly=ZXing.Net.Maui.Controls"
              x:Class="FacePass.Mobile.Views.ScannerPage"
              Title="Scan Attendance QR"
              BackgroundColor="#0D0D0D">
 
     <Grid RowDefinitions="Auto,*,Auto">
-        
+
         <!-- Geofence Status Header -->
         <Border Grid.Row="0" x:Name="GeofenceStatusBorder" Padding="15" BackgroundColor="#C62828">
-            <Label x:Name="GeofenceStatusLabel" 
-                       Text="⚠️ Outside Classroom Range" 
-                       TextColor="White" 
-                       FontSize="14" 
-                       FontWeight="Bold" 
+            <Label x:Name="GeofenceStatusLabel"
+                       Text="⚠️ Outside Classroom Range"
+                       TextColor="White"
+                       FontSize="14"
+                       FontAttributes="Bold"
                        HorizontalOptions="Center" />
         </Border>
 
@@ -23,24 +23,24 @@
             <zxing:CameraBarcodeReaderView x:Name="BarcodeReader"
                                           IsDetecting="True"
                                           BarcodesDetected="OnBarcodesDetected" />
-            
+
             <!-- Overlay Guide -->
-            <Border BorderColor="#00E676" 
-                    BorderThickness="2" 
-                    WidthRequest="250" 
-                    HeightRequest="250" 
-                    HorizontalOptions="Center" 
-                    VerticalOptions="Center" 
+            <Border Stroke="#00E676"
+                    StrokeThickness="2"
+                    WidthRequest="250"
+                    HeightRequest="250"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
                     BackgroundColor="Transparent"
-                    CornerRadius="20" />
+                    StrokeShape="RoundRectangle 20" />
         </Grid>
 
         <!-- Instruction Footer -->
         <Border Grid.Row="2" Padding="20" BackgroundColor="#1A1A1A">
-            <Label Text="Align the QR code within the frame to verify attendance." 
-                       TextColor="#88FFFFFF" 
-                       FontSize="14" 
-                       HorizontalOptions="Center" 
+            <Label Text="Align the QR code within the frame to verify attendance."
+                       TextColor="#88FFFFFF"
+                       FontSize="14"
+                       HorizontalOptions="Center"
                        HorizontalTextAlignment="Center" />
         </Border>
 

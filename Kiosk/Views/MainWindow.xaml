@@ -184,12 +184,29 @@
                 HorizontalAlignment="Center" />
         </Border>
 
-        <!-- ⑧ Bottom instruction text -->
+        <!-- ⑧ Bottom status/diagnostic text -->
+        <Border
+            VerticalAlignment="Bottom"
+            HorizontalAlignment="Center"
+            Margin="0,0,0,50"
+            Padding="15,8"
+            CornerRadius="8"
+            Background="#AA000000"
+            Visibility="{Binding IsStatusVisible, Converter={StaticResource BoolToVis}}">
+            <TextBlock
+                Text="{Binding StatusMessage}"
+                FontSize="14"
+                FontFamily="Segoe UI"
+                Foreground="#00E676"
+                FontWeight="Medium" />
+        </Border>
+
+        <!-- ⑨ Bottom instruction text -->
         <TextBlock
             Text="Please look directly at the camera"
-            FontSize="14"
+            FontSize="12"
             FontFamily="Segoe UI"
-            Foreground="#55FFFFFF"
+            Foreground="#44FFFFFF"
             HorizontalAlignment="Center"
             VerticalAlignment="Bottom"
             Margin="0,0,0,12" />

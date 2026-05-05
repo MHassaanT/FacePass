@@ -12,8 +12,8 @@ namespace FacePass.Management.Views
             InitializeComponent();
             
             // In a real app, these come from configuration
-            string url = "https://YOUR-PROJECT.supabase.co";
-            string key = "YOUR-ANON-KEY";
+            string url = "https://mfcyozrkizrbrtpfihdj.supabase.co";
+            string key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
             _auth = new AuthService(url, key);
         }
 

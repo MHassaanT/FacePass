@@ -10,11 +10,13 @@ namespace FacePass.Management.Views
 {
     public partial class UserDialog : Window
     {
-        private readonly string _baseUrl = "https://YOUR-PROJECT.supabase.co";
-        private readonly string _anonKey = "YOUR-ANON-KEY";
+        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
+        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
+        private readonly Guid _adminId;
 
-        public UserDialog()
+        public UserDialog(Guid adminId)
         {
+            _adminId = adminId;
             InitializeComponent();
         }
 
@@ -47,6 +49,19 @@ namespace FacePass.Management.Views
                 
                 var resp = await client.PostAsync($"{_baseUrl}/rest/v1/users", content);
                 resp.EnsureSuccessStatusCode();
+
+                // 4. Audit Log Entry
+                try
+                {
+                    var logPayload = new JObject
+                    {
+                        ["actor_id"] = _adminId == Guid.Empty ? (Guid?)null : _adminId,
+                        ["action"] = "CREATE_USER",
+                        ["metadata"] = $"Created user: {EmailBox.Text} ({payload["role"]})"
+                    };
+                    await client.PostAsync($"{_baseUrl}/rest/v1/audit_logs", new StringContent(logPayload.ToString(), Encoding.UTF8, "application/json"));
+                }
+                catch { /* Ignore log failures to avoid blocking user creation */ }
 
                 MessageBox.Show("User saved successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                 this.DialogResult = true;

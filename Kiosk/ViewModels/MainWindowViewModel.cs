@@ -14,29 +14,30 @@ using FacePass.Kiosk.Services;
 
 namespace FacePass.Kiosk.ViewModels
 {
-    /// <summary>
-    /// Main ViewModel for the Kiosk window.
-    /// Orchestrates the camera, face detection, recognition, liveness, QR and attendance pipeline.
-    /// </summary>
     public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     {
-        // ── Services ─────────────────────────────────────────────────────────
-        private readonly CameraService          _camera;
-        private readonly FaceDetectionService   _detector;
-        private readonly FaceEncodingService    _encoder;
+        // ── Services ──────────────────────────────────────────────────────────
+        private readonly CameraService _camera;
+        private readonly FaceDetectionService _detector;
+        private readonly FaceEncodingService _encoder;
         private readonly SupabaseFaceRepository _faceRepo;
         private readonly LivenessChallengeService _liveness;
-        private readonly QrSessionService       _qrService;
-        private readonly AttendanceService      _attendance;
-        private readonly Dispatcher             _ui;
+        private readonly QrSessionService _qrService;
+        private readonly AttendanceService _attendance;
+        private readonly Dispatcher _ui;
 
-        // ── Config (populated from AppConfig) ────────────────────────────────
+        // ── Config ────────────────────────────────────────────────────────────
         private readonly Guid _classroomId;
         private readonly Guid _courseId;
 
         // ── State ─────────────────────────────────────────────────────────────
         private bool _awaitingLiveness;
         private Rectangle _currentFaceRect;
+
+        // ── FIX: Guard flag so we don't fire a new HTTP recognition call on
+        //    every single camera frame. Without this, 30 concurrent Supabase
+        //    requests per second are launched the moment a face is visible.
+        private bool _isRecognizing;
 
         // ── Bindable properties ───────────────────────────────────────────────
         private BitmapSource? _cameraFrame;
@@ -102,6 +103,20 @@ namespace FacePass.Kiosk.ViewModels
             set { _qrVisible = value; OnPropertyChanged(); }
         }
 
+        private string _statusMessage = "Initializing...";
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            set { _statusMessage = value; OnPropertyChanged(); }
+        }
+
+        private bool _isStatusVisible = true;
+        public bool IsStatusVisible
+        {
+            get => _isStatusVisible;
+            set { _isStatusVisible = value; OnPropertyChanged(); }
+        }
+
         // ── Constructor ───────────────────────────────────────────────────────
         public MainWindowViewModel(
             CameraService camera,
@@ -114,20 +129,20 @@ namespace FacePass.Kiosk.ViewModels
             Guid classroomId,
             Guid courseId)
         {
-            _camera     = camera;
-            _detector   = detector;
-            _encoder    = encoder;
-            _faceRepo   = faceRepo;
-            _liveness   = liveness;
-            _qrService  = qrService;
+            _camera = camera;
+            _detector = detector;
+            _encoder = encoder;
+            _faceRepo = faceRepo;
+            _liveness = liveness;
+            _qrService = qrService;
             _attendance = attendance;
             _classroomId = classroomId;
-            _courseId    = courseId;
-            _ui         = Dispatcher.CurrentDispatcher;
+            _courseId = courseId;
+            _ui = Dispatcher.CurrentDispatcher;
 
             _camera.FrameReady += OnFrameReady;
 
-            // Start QR refresh loop
+            // QR refresh loop — every 30 seconds
             var qrTimer = new DispatcherTimer(DispatcherPriority.Background, _ui)
             {
                 Interval = TimeSpan.FromSeconds(30)
@@ -135,8 +150,19 @@ namespace FacePass.Kiosk.ViewModels
             qrTimer.Tick += async (_, _) => await RefreshQrAsync();
             qrTimer.Start();
 
-            // Generate first QR immediately
             _ = RefreshQrAsync();
+
+            if (!_camera.IsOpened)
+            {
+                StatusMessage = "⚠️ Camera Error: No device detected. Check connection.";
+                IsStatusVisible = true;
+            }
+            else
+            {
+                StatusMessage = "System Ready — Please look at the camera";
+                // Hide status after 5 seconds if everything is fine
+                _ = Task.Delay(5000).ContinueWith(_ => _ui.Invoke(() => IsStatusVisible = false));
+            }
         }
 
         // ── QR Refresh ────────────────────────────────────────────────────────
@@ -145,50 +171,122 @@ namespace FacePass.Kiosk.ViewModels
             try
             {
                 var (bitmap, _, _) = await _qrService.CreateSessionAsync();
-                var src = ConvertBitmap(bitmap);
-                _ui.Invoke(() =>
+                QrSource = ConvertBitmap(bitmap);
+                QrVisible = true;
+                
+                if (StatusMessage.Contains("Offline") || StatusMessage.Contains("Error"))
                 {
-                    QrSource  = src;
-                    QrVisible = true;
-                });
+                    StatusMessage = "Connection Restored";
+                    _ = Task.Delay(3000).ContinueWith(_ => _ui.Invoke(() => IsStatusVisible = false));
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[QR] Error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[QR] Critical Error: {ex.Message}");
+                
+                string errorDetail = ex.Message;
+                if (errorDetail.Contains("401") || errorDetail.Contains("403"))
+                    errorDetail = "Invalid API Key/AnonKey";
+                else if (errorDetail.Contains("404"))
+                    errorDetail = "Table 'qr_sessions' not found";
+                
+                StatusMessage = $"⚠️ Supabase Error: {errorDetail}";
+                IsStatusVisible = true;
             }
         }
+
+        private int _frameSkipCounter = 0;
 
         // ── Camera frame handler ──────────────────────────────────────────────
         private void OnFrameReady(object? sender, Emgu.CV.Image<Bgr, byte> img)
         {
-            _ui.BeginInvoke(async () =>
+            try
             {
-                // Display live video
-                CameraFrame = ConvertToBitmapSource(img);
-
-                // Detect faces
-                var faces = _detector.DetectFaces(img);
-                if (faces.Length == 0)
+                // 1. UI Preview: Clone and pass ownership to the UI lambda
+                var uiClone = img.Clone();
+                _ui.BeginInvoke(() =>
                 {
-                    FaceVisible = false;
-                    return;
-                }
+                    using (uiClone)
+                    {
+                        try { CameraFrame = ConvertToBitmapSource(uiClone); }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[UI] {ex.Message}"); }
+                    }
+                });
 
-                var face = faces[0];
-                FaceRect    = new Rect(face.X, face.Y, face.Width, face.Height);
-                FaceVisible = true;
-                _currentFaceRect = face;
+                // 2. Analysis: Throttled background processing
+                if (++_frameSkipCounter % 5 == 0)
+                {
+                    var analysisClone = img.Clone();
+                    int matWidth = analysisClone.Width;
+                    int matHeight = analysisClone.Height;
 
-                if (_awaitingLiveness)
-                {
-                    // Feed frame to liveness evaluator
-                    _liveness.EvaluateFrame(img, face);
+                    Task.Run(() =>
+                    {
+                        // Background thread: Detect faces
+                        Rectangle[] faces;
+                        try { faces = _detector.DetectFaces(analysisClone); }
+                        catch (Exception ex) 
+                        { 
+                            System.Diagnostics.Debug.WriteLine($"[Detect] {ex.Message}"); 
+                            analysisClone.Dispose();
+                            return; 
+                        }
+
+                        // Pass results back to UI thread
+                        _ui.BeginInvoke(() =>
+                        {
+                            using (analysisClone) 
+                            {
+                                if (faces.Length == 0)
+                                {
+                                    FaceVisible = false;
+                                    return;
+                                }
+
+                                var face = faces[0];
+                                
+                                // --- ACCURATE UNIFORM-TO-FILL SCALING ---
+                                var window = System.Windows.Application.Current.MainWindow;
+                                if (window != null)
+                                {
+                                    double viewW = window.ActualWidth;
+                                    double viewH = window.ActualHeight;
+                                    
+                                    double ratioX = viewW / matWidth;
+                                    double ratioY = viewH / matHeight;
+                                    double scale = Math.Max(ratioX, ratioY);
+
+                                    double offsetX = (viewW - (matWidth * scale)) / 2;
+                                    double offsetY = (viewH - (matHeight * scale)) / 2;
+
+                                    FaceRect = new Rect(
+                                        (face.X * scale) + offsetX, 
+                                        (face.Y * scale) + offsetY, 
+                                        face.Width * scale, 
+                                        face.Height * scale);
+                                }
+
+                                FaceVisible = true;
+                                _currentFaceRect = face;
+
+                                if (_awaitingLiveness)
+                                {
+                                    _liveness.EvaluateFrame(analysisClone, face);
+                                }
+                                else if (!_isRecognizing)
+                                {
+                                    _isRecognizing = true;
+                                    _ = RecognizeAndProcessAsync(analysisClone.Clone(), face);
+                                }
+                            }
+                        });
+                    });
                 }
-                else
-                {
-                    await RecognizeAndProcessAsync(img, face);
-                }
-            });
+            }
+            finally
+            {
+                img.Dispose(); // Dispose original frame
+            }
         }
 
         // ── Recognition → Liveness → Attendance pipeline ─────────────────────
@@ -197,25 +295,36 @@ namespace FacePass.Kiosk.ViewModels
         {
             try
             {
-                // 1. Extract encoding
                 var grayFace = _encoder.ExtractFace(frame, faceRect);
                 var encoding = _encoder.GetEncoding(grayFace);
 
-                // 2. Fetch stored encodings and match
                 var stored = await _faceRepo.GetAllEncodingsAsync();
-                var match  = FindClosestMatch(stored, encoding);
-                if (match == null) return; // no match – do nothing
+                var match = FindClosestMatch(stored, encoding);
 
-                // 3. Start liveness challenge
+                if (match == null)
+                {
+                    // No match — reset so the next frame can try again
+                    _isRecognizing = false;
+                    frame.Dispose();
+                    return;
+                }
+
                 _awaitingLiveness = true;
                 var challenge = _liveness.PickRandom();
-                ChallengeText    = FormatChallenge(challenge);
-                ChallengeVisible = true;
+
+                _ui.Invoke(() =>
+                {
+                    ChallengeText = FormatChallenge(challenge);
+                    ChallengeVisible = true;
+                });
 
                 var passed = await _liveness.BeginAsync(faceRect);
 
-                ChallengeVisible = false;
-                _awaitingLiveness = false;
+                _ui.Invoke(() =>
+                {
+                    ChallengeVisible = false;
+                    _awaitingLiveness = false;
+                });
 
                 if (!passed)
                 {
@@ -223,23 +332,30 @@ namespace FacePass.Kiosk.ViewModels
                         match.Value, _courseId, _classroomId,
                         method: "face", status: "suspicious",
                         flaggedReason: "Liveness challenge failed or timed out");
-                    return;
                 }
+                else
+                {
+                    await _attendance.LogAsync(
+                        match.Value, _courseId, _classroomId,
+                        method: "face", status: "present");
 
-                // 4. Log attendance as present
-                await _attendance.LogAsync(
-                    match.Value, _courseId, _classroomId,
-                    method: "face", status: "present");
-
-                // 5. Show welcome banner
-                var name = await _faceRepo.GetStudentNameAsync(match.Value);
-                ShowBanner($"✅  Welcome, {name}!");
+                    var name = await _faceRepo.GetStudentNameAsync(match.Value);
+                    _ui.Invoke(() => ShowBanner($"✅  Welcome, {name}!"));
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Recognition] Error: {ex.Message}");
-                _awaitingLiveness = false;
-                ChallengeVisible  = false;
+                _ui.Invoke(() =>
+                {
+                    _awaitingLiveness = false;
+                    ChallengeVisible = false;
+                });
+            }
+            finally
+            {
+                frame.Dispose();
+                _isRecognizing = false;
             }
         }
 
@@ -264,19 +380,22 @@ namespace FacePass.Kiosk.ViewModels
 
         private static string FormatChallenge(LivenessChallenge c) => c switch
         {
-            LivenessChallenge.LookLeft  => "👈  Please look LEFT",
+            LivenessChallenge.LookLeft => "👈  Please look LEFT",
             LivenessChallenge.LookRight => "👉  Please look RIGHT",
-            LivenessChallenge.Smile     => "😊  Please SMILE",
-            LivenessChallenge.Blink     => "👁  Please BLINK",
+            LivenessChallenge.Smile => "😊  Please SMILE",
+            LivenessChallenge.Blink => "👁  Please BLINK",
             _ => string.Empty
         };
 
         private void ShowBanner(string message)
         {
-            BannerText    = message;
+            BannerText = message;
             BannerVisible = true;
 
-            var timer = new DispatcherTimer(DispatcherPriority.Normal, _ui) { Interval = TimeSpan.FromSeconds(3) };
+            var timer = new DispatcherTimer(DispatcherPriority.Normal, _ui)
+            {
+                Interval = TimeSpan.FromSeconds(3)
+            };
             timer.Tick += (_, _) =>
             {
                 BannerVisible = false;
@@ -305,14 +424,32 @@ namespace FacePass.Kiosk.ViewModels
         private static BitmapSource ConvertToBitmapSource(Emgu.CV.Image<Bgr, byte> img)
         {
             var mat = img.Mat;
-            return BitmapSource.Create(
-                mat.Width, mat.Height,
-                96, 96,
-                System.Windows.Media.PixelFormats.Bgr24,
-                null,
-                mat.DataPointer,
-                mat.Step * mat.Height,
-                mat.Step);
+            int width = mat.Width;
+            int height = mat.Height;
+            int stride = mat.Step;
+
+            // Use WriteableBitmap to ensure we have a safe, UI-owned copy of the pixels
+            var bitmap = new WriteableBitmap(width, height, 96, 96, System.Windows.Media.PixelFormats.Bgr24, null);
+            bitmap.Lock();
+            try
+            {
+                // Copy pixels from native Mat buffer to WriteableBitmap back buffer
+                unsafe
+                {
+                    Buffer.MemoryCopy(
+                        (void*)mat.DataPointer,
+                        (void*)bitmap.BackBuffer,
+                        bitmap.BackBufferStride * height,
+                        stride * height);
+                }
+                bitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
+            }
+            finally
+            {
+                bitmap.Unlock();
+            }
+            bitmap.Freeze();
+            return bitmap;
         }
 
         [System.Runtime.InteropServices.DllImport("gdi32.dll")]

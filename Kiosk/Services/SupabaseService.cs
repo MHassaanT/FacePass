@@ -20,6 +20,7 @@ namespace FacePass.Kiosk.Services
         {
             BaseUrl = baseUrl.TrimEnd('/');
             _http = new HttpClient();
+            _http.Timeout = TimeSpan.FromSeconds(10);
             _http.DefaultRequestHeaders.Add("apikey", anonKey);
             _http.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", anonKey);

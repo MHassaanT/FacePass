@@ -29,10 +29,16 @@ namespace FacePass.Kiosk.Services
         private const double SMILE_RATIO_THRESHOLD = 2.0;   // mouth width/height above this = smile
         private const double HEAD_TURN_OFFSET_RATIO = 0.15; // % of face width deviation
 
+        private readonly CascadeClassifier _eyeCascade;
         private TaskCompletionSource<bool>? _tcs;
         private CancellationTokenSource? _timeoutCts;
         private LivenessChallenge _current;
         private Rectangle _lastFaceRect;
+
+        public LivenessChallengeService(string eyeCascadePath = "haarcascade_eye.xml")
+        {
+            _eyeCascade = new CascadeClassifier(eyeCascadePath);
+        }
 
         public LivenessChallenge PickRandom()
         {
@@ -144,9 +150,6 @@ namespace FacePass.Kiosk.Services
         /// Detects a blink using Haar eye cascade.
         /// A blink causes the eye detector to fail briefly.
         /// </summary>
-        private static readonly CascadeClassifier _eyeCascade =
-            new("haarcascade_eye.xml");
-
         private int _eyePresentFrames = 0;
         private int _eyeAbsentFrames = 0;
 

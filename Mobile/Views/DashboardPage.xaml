@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="FacePass.Mobile.Views.DashboardPage"
              Title="Student Dashboard"
              BackgroundColor="#0D0D0D">
 
     <ScrollView>
         <VerticalStackLayout Padding="20" Spacing="20">
-            
+
             <!-- Attendance Summary Card -->
             <Frame BackgroundColor="#1A1A1A" BorderColor="#333" CornerRadius="15" Padding="20">
                 <VerticalStackLayout Spacing="10">
                     <Label Text="Overall Attendance" TextColor="#88FFFFFF" FontSize="14" HorizontalOptions="Center" />
-                    <Label x:Name="AttendancePercentageLabel" Text="0%" TextColor="#00E676" FontSize="48" FontWeight="Bold" HorizontalOptions="Center" />
+                    <Label x:Name="AttendancePercentageLabel" Text="0%" TextColor="#00E676" FontSize="48" FontAttributes="Bold" HorizontalOptions="Center" />
                     <ProgressBar x:Name="AttendanceProgressBar" Progress="0.0" ProgressColor="#00E676" HorizontalOptions="Fill" />
                 </VerticalStackLayout>
             </Frame>
@@ -21,18 +21,18 @@
                 <Frame Grid.Column="0" BackgroundColor="#1A1A1A" BorderColor="#333" CornerRadius="12" Padding="15">
                     <VerticalStackLayout>
                         <Label Text="Total Classes" TextColor="#88FFFFFF" FontSize="12" />
-                        <Label x:Name="TotalClassesLabel" Text="0" TextColor="White" FontSize="20" FontWeight="SemiBold" />
+                        <Label x:Name="TotalClassesLabel" Text="0" TextColor="White" FontSize="20" FontAttributes="Bold" />
                     </VerticalStackLayout>
                 </Frame>
                 <Frame Grid.Column="1" BackgroundColor="#1A1A1A" BorderColor="#333" CornerRadius="12" Padding="15">
                     <VerticalStackLayout>
                         <Label Text="Attended" TextColor="#88FFFFFF" FontSize="12" />
-                        <Label x:Name="AttendedLabel" Text="0" TextColor="White" FontSize="20" FontWeight="SemiBold" />
+                        <Label x:Name="AttendedLabel" Text="0" TextColor="White" FontSize="20" FontAttributes="Bold" />
                     </VerticalStackLayout>
                 </Frame>
             </Grid>
 
-            <Label Text="Recent Attendance" TextColor="White" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <Label Text="Recent Attendance" TextColor="White" FontSize="18" FontAttributes="Bold" Margin="0,10,0,0" />
 
             <CollectionView x:Name="AttendanceHistoryList">
                 <CollectionView.ItemTemplate>
@@ -40,11 +40,11 @@
                         <Frame BackgroundColor="#1A1A1A" BorderColor="#333" Margin="0,0,0,10" Padding="15" CornerRadius="10">
                             <Grid ColumnDefinitions="*,Auto">
                                 <VerticalStackLayout Grid.Column="0">
-                                    <Label Text="{Binding course_name}" TextColor="White" FontSize="16" FontWeight="SemiBold" />
+                                    <Label Text="{Binding course_name}" TextColor="White" FontSize="16" FontAttributes="Bold" />
                                     <Label Text="{Binding timestamp_formatted}" TextColor="#88FFFFFF" FontSize="12" />
                                 </VerticalStackLayout>
-                                <Border Grid.Column="1" Padding="8,4" BackgroundColor="{Binding status_color}" CornerRadius="4" VerticalOptions="Center">
-                                    <Label Text="{Binding status}" TextColor="White" FontSize="10" FontWeight="Bold" />
+                                <Border Grid.Column="1" Padding="8,4" BackgroundColor="{Binding status_color}" StrokeShape="RoundRectangle 4" VerticalOptions="Center">
+                                    <Label Text="{Binding status}" TextColor="White" FontSize="10" FontAttributes="Bold" />
                                 </Border>
                             </Grid>
                         </Frame>
