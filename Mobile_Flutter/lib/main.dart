@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'pages/dashboard_page.dart';
+
+import 'pages/login_page.dart';
 import 'services/supabase_service.dart';
 
 void main() async {
@@ -10,10 +11,9 @@ void main() async {
 
   // Initialize Supabase with placeholders (User must update)
   await Supabase.initialize(
-    url: 'https://mfcyozrkizrbrtpfihdj.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE',
+    url: 'https://mfcyozrkizrbtrpfihdj.supabase.co',
+    anonKey: 'sb_publishable_8-UJfZOL6kRNRIg68y9q8w_hllwPMPZ',
   );
-
   runApp(
     MultiProvider(
       providers: [
@@ -44,7 +44,7 @@ class FacePassApp extends StatelessWidget {
         textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
         useMaterial3: true,
       ),
-      home: const DashboardPage(),
+      home: const LoginPage(),
     );
   }
 }
