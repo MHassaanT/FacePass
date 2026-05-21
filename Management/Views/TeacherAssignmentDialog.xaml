@@ -1,0 +1,40 @@
+<Window x:Class="FacePass.Management.Views.TeacherAssignmentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Assign Teacher to Course" Height="450" Width="450"
+        WindowStartupLocation="CenterOwner" Background="#111"
+        WindowStyle="ToolWindow" Foreground="White">
+    <Window.Resources>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#1A1A1A"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#333"/>
+            <Setter Property="Padding" Value="5,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+    
+    <Grid Margin="30">
+        <StackPanel>
+            <TextBlock Text="Teacher Assignment" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,20"/>
+
+            <Border Background="#1A1A1A" Padding="15" CornerRadius="4" BorderBrush="#333" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="Assigning courses for:" Foreground="#88FFFFFF" FontSize="12" Margin="0,0,0,5"/>
+                    <TextBlock x:Name="TeacherInfoText" Foreground="#00E676" FontWeight="Bold" FontSize="16" Text="Name (email@example.com)"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Select Class" Foreground="#88FFFFFF" Margin="0,20,0,5"/>
+            <ComboBox x:Name="ClassCombo" Height="35" DisplayMemberPath="name" SelectionChanged="ClassCombo_SelectionChanged"/>
+
+            <TextBlock Text="Select Subject" Foreground="#88FFFFFF" Margin="0,15,0,5"/>
+            <ComboBox x:Name="CourseCombo" Height="35" DisplayMemberPath="name"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,30,0,0">
+                <Button Content="Save Assignment" Width="140" Height="40" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="Save_Click" BorderThickness="0"/>
+                <Button Content="Skip" Width="80" Height="40" Margin="10,0,0,0" Background="#333" Foreground="White" Click="Skip_Click" BorderThickness="0"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -14,12 +14,15 @@
                 
                 <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,15">
                     <Button Content="+ Add User" Width="100" Height="30" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="AddUser_Click"/>
-                    <Button Content="Refresh" Width="80" Height="30" Margin="10,0" Background="#333" Foreground="White" Click="RefreshUsers_Click"/>
+                    <Button x:Name="EditUserBtn" Content="Edit Selected" Width="110" Height="30" Margin="10,0" Background="#1565C0" Foreground="White" FontWeight="Bold" Click="EditUser_Click" IsEnabled="False"/>
+                    <Button x:Name="DeleteUserBtn" Content="Delete Selected" Width="120" Height="30" Background="#C62828" Foreground="White" FontWeight="Bold" Click="DeleteUser_Click" IsEnabled="False"/>
+                    <Button x:Name="AssignClassBtn" Content="Assign Class" Width="110" Height="30" Margin="10,0" Background="#2E7D32" Foreground="White" FontWeight="Bold" Click="AssignClass_Click" IsEnabled="False"/>
+                    <Button Content="Refresh" Width="80" Height="30" Background="#333" Foreground="White" Click="RefreshUsers_Click"/>
                 </StackPanel>
 
                 <DataGrid x:Name="UsersGrid" Grid.Row="1" Background="#111" Foreground="White" 
                           BorderBrush="#333" RowBackground="#1A1A1A" AutoGenerateColumns="True"
-                          CanUserAddRows="False"/>
+                          CanUserAddRows="False" SelectionChanged="UsersGrid_SelectionChanged"/>
             </Grid>
         </TabItem>
 
@@ -34,6 +37,41 @@
                         <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="120"/>
                         <DataGridTextColumn Header="Metadata" Binding="{Binding Metadata}" Width="*"/>
                     </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </TabItem>
+
+        <!-- Timetable Management Tab -->
+        <TabItem Header="Timetable" Foreground="White">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,15">
+                    <Button Content="+ Add Slot" Width="100" Height="30" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="AddSlot_Click"/>
+                    <Button Content="Edit Selected" Width="100" Height="30" Margin="10,0" Background="#333" Foreground="White" Click="EditSlot_Click"/>
+                    <Button Content="Refresh" Width="80" Height="30" Background="#333" Foreground="White" Click="RefreshTimetable_Click"/>
+                </StackPanel>
+
+                <DataGrid x:Name="TimetableGrid" Grid.Row="1" Background="#111" Foreground="White" 
+                          BorderBrush="#333" RowBackground="#1A1A1A" AutoGenerateColumns="False" IsReadOnly="True"
+                          GridLinesVisibility="None" BorderThickness="1">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Day" Binding="{Binding day_of_week}" Width="100"/>
+                        <DataGridTextColumn Header="Course Name" Binding="{Binding course_name}" Width="*"/>
+                        <DataGridTextColumn Header="Start Time" Binding="{Binding start_time}" Width="100"/>
+                        <DataGridTextColumn Header="End Time" Binding="{Binding end_time}" Width="100"/>
+                    </DataGrid.Columns>
+                    <DataGrid.Resources>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#333"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Padding" Value="5"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                        </Style>
+                    </DataGrid.Resources>
                 </DataGrid>
             </Grid>
         </TabItem>
