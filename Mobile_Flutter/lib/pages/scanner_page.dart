@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:provider/provider.dart';
-import '../services/supabase_service.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -25,7 +25,8 @@ class _ScannerPageState extends State<ScannerPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon:
+              const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -49,7 +50,6 @@ class _ScannerPageState extends State<ScannerPage> {
   Widget _buildOverlay() {
     return Stack(
       children: [
-        // Semi-transparent background with a hole
         ColorFiltered(
           colorFilter: ColorFilter.mode(
             Colors.black.withOpacity(0.7),
@@ -77,14 +77,14 @@ class _ScannerPageState extends State<ScannerPage> {
             ],
           ),
         ),
-        // Corner markers
         Align(
           alignment: Alignment.center,
           child: Container(
             width: 260,
             height: 260,
             decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).primaryColor, width: 2),
+              border:
+                  Border.all(color: Theme.of(context).primaryColor, width: 2),
               borderRadius: BorderRadius.circular(35),
             ),
           ),
@@ -137,65 +137,155 @@ class _ScannerPageState extends State<ScannerPage> {
     });
 
     try {
-      // 1. Check Geofencing (20m radius)
-      bool inRange = await _checkGeofence();
+      // STEP A: Parse QR string
+      final parts = data.split('|');
+      if (parts.length != 3) {
+        setState(() {
+          _isProcessing = false;
+          _status = '❌ Invalid QR Code format.';
+          _statusColor = Colors.redAccent;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _isProcessing = false);
+        });
+        return;
+      }
+
+      final sessionGuid = parts[0];
+      final courseId = parts[1];
+      final classroomId = parts[2];
+
+      // STEP B: Validate session from Supabase
+      setState(() => _status = 'Checking session...');
+      final sessionResp = await Supabase.instance.client
+          .from('qr_sessions')
+          .select('id, expires_at')
+          .eq('session_guid', sessionGuid)
+          .eq('classroom_id', classroomId)
+          .maybeSingle();
+
+      if (sessionResp == null) {
+        setState(() {
+          _isProcessing = false;
+          _status = '❌ QR code not found.\nAsk your teacher for a new code.';
+          _statusColor = Colors.redAccent;
+        });
+        return;
+      }
+
+      final expiresAt = DateTime.parse(sessionResp['expires_at']).toUtc();
+      if (DateTime.now().toUtc().isAfter(expiresAt)) {
+        setState(() {
+          _isProcessing = false;
+          _status = '❌ QR code has expired.\nAsk your teacher for a new code.';
+          _statusColor = Colors.redAccent;
+        });
+        return;
+      }
+
+      // STEP C: Get classroom GPS from Supabase
+      setState(() => _status = 'Checking your location...');
+      final classroomResp = await Supabase.instance.client
+          .from('classrooms')
+          .select('id, name, latitude, longitude')
+          .eq('id', classroomId)
+          .maybeSingle();
+
+      if (classroomResp == null) {
+        setState(() {
+          _isProcessing = false;
+          _status = '❌ Classroom not found.';
+          _statusColor = Colors.redAccent;
+        });
+        return;
+      }
+
+      final targetLat = (classroomResp['latitude'] as num).toDouble();
+      final targetLng = (classroomResp['longitude'] as num).toDouble();
+
+      // STEP D: Check geofence
+      final bool inRange = await _checkGeofenceWithCoords(targetLat, targetLng);
       if (!inRange) {
         setState(() {
           _isProcessing = false;
           _status = '❌ Out of Range\nYou must be in the classroom.';
           _statusColor = Colors.redAccent;
         });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _isProcessing = false);
+        });
         return;
       }
 
-      // 2. Process QR Data (Mocked parse)
-      // data format: session_id|course_id|classroom_id
-      final parts = data.split('|');
-      if (parts.length < 3) {
-        throw 'Invalid QR Code';
-      }
+      // STEP E: Mark attendance
+      setState(() => _status = 'Marking attendance...');
+      final userId = Supabase.instance.client.auth.currentUser!.id;
 
-      // 3. Mark Attendance in Supabase
-      final success = await context.read<SupabaseService>().markAttendance(
-            studentId: '00000000-0000-0000-0000-000000000001',
-            courseId: parts[1],
-            classroomId: parts[2],
-            method: 'qr',
-          );
+      final studentResp = await Supabase.instance.client
+          .from('students')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (success) {
+      if (studentResp == null) {
         setState(() {
-          _status = '✅ Attendance Marked!';
-          _statusColor = const Color(0xFF00E676);
+          _isProcessing = false;
+          _status = '❌ Student record not found.';
+          _statusColor = Colors.redAccent;
         });
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted) Navigator.pop(context);
-      } else {
-        throw 'Database update failed';
+        return;
       }
-    } catch (e) {
+
+      await Supabase.instance.client.from('attendance_logs').insert({
+        'student_id': studentResp['id'],
+        'course_id': courseId,
+        'classroom_id': classroomId,
+        'method': 'qr',
+        'status': 'present',
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      // STEP F: Success
       setState(() {
+        _status = '✅ Attendance Marked!';
+        _statusColor = const Color(0xFF00E676);
         _isProcessing = false;
-        _status = '❌ Error: $e';
-        _statusColor = Colors.redAccent;
+      });
+
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint('Error: $e');
+      setState(() {
+        _status = 'Error: $e';
+        _statusColor = Colors.red;
+        _isProcessing = false;
+      });
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _isProcessing = false);
       });
     }
   }
 
   Future<bool> _checkGeofence() async {
-    // Mocked target classroom coordinates
     const double targetLat = 0.0;
     const double targetLng = 0.0;
+    return _checkGeofenceWithCoords(targetLat, targetLng);
+  }
 
+  Future<bool> _checkGeofenceWithCoords(
+      double targetLat, double targetLng) async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
       Position pos = await Geolocator.getCurrentPosition();
-      double dist = Geolocator.distanceBetween(pos.latitude, pos.longitude, targetLat, targetLng);
-      return dist <= 20; // 20 meters
+      double dist = Geolocator.distanceBetween(
+          pos.latitude, pos.longitude, targetLat, targetLng);
+      return dist <= 200; // 200 meters
     }
     return false;
   }

@@ -1,9 +1,14 @@
+import 'package:facepass_mobile/services/gps_tracking_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../models/subject_attendance.dart';
 import '../services/supabase_service.dart';
 import 'scanner_page.dart';
+import 'profile_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'report_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -13,13 +18,35 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  final GpsTrackingService _gpsTracker = GpsTrackingService();
   @override
   void initState() {
     super.initState();
-    // Load data on start
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SupabaseService>().loadDashboardData('00000000-0000-0000-0000-000000000001');
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        context.read<SupabaseService>().loadDashboardData(userId);
+
+        final studentResp = await Supabase.instance.client
+            .from('students')
+            .select('id, class_id')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (studentResp != null) {
+          _gpsTracker.startTracking(
+            userId,
+            studentResp['class_id'].toString(),
+          );
+        }
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _gpsTracker.stopTracking();
+    super.dispose();
   }
 
   @override
@@ -38,6 +65,17 @@ class _DashboardPageState extends State<DashboardPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildStatsCard(stats),
+                  const SizedBox(height: 30),
+                  Text(
+                    'Attendance by Subject',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  _buildSubjectList(service.subjects),
                   const SizedBox(height: 30),
                   Text(
                     'Recent Activity',
@@ -84,10 +122,22 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       actions: [
         IconButton(
-          onPressed: () {},
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfilePage()),
+          ),
           icon: const Icon(Icons.person_outline_rounded),
         ),
         const SizedBox(width: 10),
+        IconButton(
+          icon: const Icon(Icons.picture_as_pdf, color: Colors.black),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ReportPage()),
+            );
+          },
+        ),
       ],
     );
   }
@@ -154,7 +204,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       valueColor: const AlwaysStoppedAnimation(Colors.white),
                     ),
                   ),
-                  const Icon(Icons.check_circle_outline, color: Colors.white, size: 30),
+                  const Icon(Icons.check_circle_outline,
+                      color: Colors.white, size: 30),
                 ],
               ),
             ],
@@ -163,9 +214,11 @@ class _DashboardPageState extends State<DashboardPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildSmallStat('Sessions', stats?['total_sessions']?.toString() ?? '0'),
+              _buildSmallStat(
+                  'Sessions', stats?['total_sessions']?.toString() ?? '0'),
               Container(width: 1, height: 30, color: Colors.white24),
-              _buildSmallStat('Attended', stats?['present_count']?.toString() ?? '0'),
+              _buildSmallStat(
+                  'Attended', stats?['present_count']?.toString() ?? '0'),
               Container(width: 1, height: 30, color: Colors.white24),
               _buildSmallStat('Rank', '#12'),
             ],
@@ -197,12 +250,89 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Widget _buildSubjectList(List<SubjectAttendance> subjects) {
+    if (subjects.isEmpty) {
+      return const Center(
+        child: Text('No subjects enrolled',
+            style: TextStyle(color: Colors.white38)),
+      );
+    }
+
+    return Column(
+      children: subjects.map((subject) {
+        final color = _getAttendanceColor(subject.percentage);
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      subject.courseName,
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${subject.percentage.toStringAsFixed(0)}%',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: subject.percentage / 100,
+                  backgroundColor: Colors.white10,
+                  valueColor: AlwaysStoppedAnimation(color),
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${subject.present} / ${subject.total} sessions',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: Colors.white38,
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.05);
+      }).toList(),
+    );
+  }
+
+  Color _getAttendanceColor(double percentage) {
+    if (percentage >= 75) return const Color(0xFF00E676);
+    if (percentage >= 50) return Colors.orangeAccent;
+    return Colors.redAccent;
+  }
+
   Widget _buildHistoryList(List<dynamic> history) {
     if (history.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.only(top: 40),
-          child: Text('No recent activity', style: TextStyle(color: Colors.white38)),
+          child: Text('No recent activity',
+              style: TextStyle(color: Colors.white38)),
         ),
       );
     }
@@ -215,7 +345,7 @@ class _DashboardPageState extends State<DashboardPage> {
       itemBuilder: (context, index) {
         final item = history[index];
         final status = item['status']?.toString().toLowerCase() ?? 'unknown';
-        
+
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -231,7 +361,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   color: _getStatusColor(status).withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(_getStatusIcon(status), color: _getStatusColor(status), size: 20),
+                child: Icon(_getStatusIcon(status),
+                    color: _getStatusColor(status), size: 20),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -240,11 +371,13 @@ class _DashboardPageState extends State<DashboardPage> {
                   children: [
                     Text(
                       item['courses']?['name'] ?? 'Unknown Course',
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     Text(
                       item['timestamp']?.toString().substring(0, 16) ?? '',
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      style:
+                          const TextStyle(color: Colors.white38, fontSize: 12),
                     ),
                   ],
                 ),
@@ -267,19 +400,27 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'present': return const Color(0xFF00E676);
-      case 'suspicious': return const Color(0xFFFF5252);
-      case 'manual_override': return const Color(0xFF448AFF);
-      default: return Colors.grey;
+      case 'present':
+        return const Color(0xFF00E676);
+      case 'suspicious':
+        return const Color(0xFFFF5252);
+      case 'manual_override':
+        return const Color(0xFF448AFF);
+      default:
+        return Colors.grey;
     }
   }
 
   IconData _getStatusIcon(String status) {
     switch (status) {
-      case 'present': return Icons.check_rounded;
-      case 'suspicious': return Icons.warning_amber_rounded;
-      case 'manual_override': return Icons.edit_note_rounded;
-      default: return Icons.help_outline_rounded;
+      case 'present':
+        return Icons.check_rounded;
+      case 'suspicious':
+        return Icons.warning_amber_rounded;
+      case 'manual_override':
+        return Icons.edit_note_rounded;
+      default:
+        return Icons.help_outline_rounded;
     }
   }
 }
