@@ -1,0 +1,279 @@
+{
+  "project": "FacePass",
+  "supabase_project_id": "mfcyozrkizrbrtpfihdj",
+  "schema_version": "3NF",
+  "generated_at": "2026-05-22",
+  "database": {
+    "host": "db.mfcyozrkizrbrtpfihdj.supabase.co",
+    "postgres_version": "17.6.1.105"
+  },
+  "tables": [
+    {
+      "table": "ROLE",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "role_id",
+      "columns": [
+        { "name": "role_id",   "type": "bigint", "nullable": false, "identity": true },
+        { "name": "role_name", "type": "text",   "nullable": false }
+      ],
+      "foreign_keys": [],
+      "referenced_by": [
+        { "table": "USER", "column": "role_id FK" }
+      ]
+    },
+    {
+      "table": "USER",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "user_id PK",
+      "columns": [
+        { "name": "user_id PK",     "type": "bigint", "nullable": false, "identity": true },
+        { "name": "first_name",     "type": "text",   "nullable": false },
+        { "name": "last_name",      "type": "text",   "nullable": true  },
+        { "name": "email",          "type": "text",   "nullable": true  },
+        { "name": "password_hash",  "type": "text",   "nullable": true  },
+        { "name": "role_id FK",     "type": "text",   "nullable": true  },
+        { "name": "created_at",     "type": "text",   "nullable": true  }
+      ],
+      "foreign_keys": [],
+      "notes": "role_id FK column is typed as text — consider aligning to bigint to match ROLE.role_id"
+    },
+    {
+      "table": "DEPARTMENT",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "department_id",
+      "columns": [
+        { "name": "department_id",   "type": "bigint", "nullable": false, "identity": true },
+        { "name": "department_name", "type": "text",   "nullable": false }
+      ],
+      "foreign_keys": [],
+      "referenced_by": [
+        { "table": "TEACHERS", "column": "department_id" },
+        { "table": "COURSES",  "column": "department_id" }
+      ]
+    },
+    {
+      "table": "TEACHERS",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "teacher_id",
+      "columns": [
+        { "name": "teacher_id",    "type": "bigint",                  "nullable": false, "identity": true },
+        { "name": "hire_date",     "type": "timestamp with time zone", "nullable": false, "default": "now()" },
+        { "name": "department_id", "type": "smallint",                "nullable": true  }
+      ],
+      "foreign_keys": [],
+      "referenced_by": [
+        { "table": "COURSES", "column": "teacher_id", "constraint": "COURSES_teacher_id_fkey" }
+      ],
+      "notes": "department_id is smallint here but bigint in DEPARTMENT — type mismatch to resolve"
+    },
+    {
+      "table": "STUDENTS",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "student_id",
+      "columns": [
+        { "name": "student_id",      "type": "bigint", "nullable": false, "identity": true },
+        { "name": "enrollment_date", "type": "text",   "nullable": false },
+        { "name": "status",          "type": "text",   "nullable": true  }
+      ],
+      "foreign_keys": [],
+      "referenced_by": [
+        { "table": "FACE_ENCODINGS",     "column": "student_id", "constraint": "FACE_ENCODINGS_student_id_fkey" },
+        { "table": "COURSE_ENROLLMENTS", "column": "student_id", "constraint": "COURSE_ENROLLMENTS_student_id_fkey" }
+      ]
+    },
+    {
+      "table": "COURSES",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "course_id",
+      "columns": [
+        { "name": "course_id",   "type": "bigint", "nullable": false, "identity": true },
+        { "name": "course_name", "type": "text",   "nullable": false },
+        { "name": "course_code", "type": "bigint", "nullable": true  },
+        { "name": "department_id", "type": "bigint", "nullable": false },
+        { "name": "teacher_id",  "type": "bigint", "nullable": true  }
+      ],
+      "foreign_keys": [
+        { "column": "department_id", "references": "DEPARTMENT.department_id", "constraint": "COURSES_department_id_fkey" },
+        { "column": "teacher_id",    "references": "TEACHERS.teacher_id",      "constraint": "COURSES_teacher_id_fkey" }
+      ],
+      "referenced_by": [
+        { "table": "COURSE_ENROLLMENTS", "column": "course_id", "constraint": "COURSE_ENROLLMENTS_course_id_fkey" }
+      ]
+    },
+    {
+      "table": "COURSE_ENROLLMENTS",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "enrollment_id",
+      "columns": [
+        { "name": "enrollment_id", "type": "bigint", "nullable": false, "identity": true },
+        { "name": "student_id",   "type": "bigint", "nullable": false },
+        { "name": "course_id",    "type": "bigint", "nullable": true  }
+      ],
+      "foreign_keys": [
+        { "column": "student_id", "references": "STUDENTS.student_id", "constraint": "COURSE_ENROLLMENTS_student_id_fkey" },
+        { "column": "course_id",  "references": "COURSES.course_id",   "constraint": "COURSE_ENROLLMENTS_course_id_fkey" }
+      ]
+    },
+    {
+      "table": "BUILDINGS",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "building_id",
+      "columns": [
+        { "name": "building_id",           "type": "bigint", "nullable": false, "identity": true },
+        { "name": "building_name",          "type": "text",   "nullable": false },
+        { "name": "location_coordinates",   "type": "text",   "nullable": true  }
+      ],
+      "foreign_keys": [],
+      "referenced_by": [
+        { "table": "CLASSROOMS", "column": "building_id", "constraint": "CLASSROOMS_building_id_fkey" }
+      ]
+    },
+    {
+      "table": "CLASSROOMS",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "classroom_id",
+      "columns": [
+        { "name": "classroom_id",  "type": "bigint", "nullable": false, "identity": true },
+        { "name": "room_number",   "type": "bigint", "nullable": false },
+        { "name": "building_id",   "type": "bigint", "nullable": true  },
+        { "name": "capacity",      "type": "bigint", "nullable": true  }
+      ],
+      "foreign_keys": [
+        { "column": "building_id", "references": "BUILDINGS.building_id", "constraint": "CLASSROOMS_building_id_fkey" }
+      ]
+    },
+    {
+      "table": "FACE_ENCODINGS",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "encoding_id",
+      "columns": [
+        { "name": "encoding_id",       "type": "bigint",                  "nullable": false, "identity": true },
+        { "name": "student_id",        "type": "bigint",                  "nullable": false },
+        { "name": "vector_data_bytea", "type": "bytea",                   "nullable": true  },
+        { "name": "registered_at",     "type": "time without time zone",  "nullable": true  }
+      ],
+      "foreign_keys": [
+        { "column": "student_id", "references": "STUDENTS.student_id", "constraint": "FACE_ENCODINGS_student_id_fkey" }
+      ],
+      "notes": "registered_at is time only — consider timestamptz to capture the full registration date"
+    },
+    {
+      "table": "attendance_methods",
+      "schema": "public",
+      "rls_enabled": false,
+      "primary_key": "method_id",
+      "columns": [
+        { "name": "method_id",   "type": "bigint",           "nullable": false, "identity": true },
+        { "name": "method_name", "type": "character varying", "nullable": false }
+      ],
+      "foreign_keys": [],
+      "referenced_by": [
+        { "table": "attendance_logs", "column": "method_id", "constraint": "attendance_logs_method_id_fkey" }
+      ],
+      "security_warning": "RLS is DISABLED — table is publicly readable/writable via anon key"
+    },
+    {
+      "table": "attendance_statuses",
+      "schema": "public",
+      "rls_enabled": false,
+      "primary_key": "status_id",
+      "columns": [
+        { "name": "status_id",   "type": "bigint",           "nullable": false, "identity": true },
+        { "name": "status_name", "type": "character varying", "nullable": false }
+      ],
+      "foreign_keys": [],
+      "referenced_by": [
+        { "table": "attendance_logs", "column": "status_id", "constraint": "attendance_logs_status_id_fkey" }
+      ],
+      "security_warning": "RLS is DISABLED — table is publicly readable/writable via anon key"
+    },
+    {
+      "table": "attendance_logs",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "log_id",
+      "columns": [
+        { "name": "log_id",         "type": "bigint",                  "nullable": false, "identity": true },
+        { "name": "student_id",     "type": "bigint",                  "nullable": false },
+        { "name": "classroom_id",   "type": "bigint",                  "nullable": true  },
+        { "name": "method_id",      "type": "bigint",                  "nullable": true  },
+        { "name": "status_id",      "type": "bigint",                  "nullable": true  },
+        { "name": "timestamp",      "type": "timestamp with time zone", "nullable": true  },
+        { "name": "flagged_reason", "type": "text",                    "nullable": true  }
+      ],
+      "foreign_keys": [
+        { "column": "method_id", "references": "attendance_methods.method_id", "constraint": "attendance_logs_method_id_fkey" },
+        { "column": "status_id", "references": "attendance_statuses.status_id", "constraint": "attendance_logs_status_id_fkey" }
+      ],
+      "notes": "student_id and classroom_id have no FK constraints defined — consider adding them"
+    },
+    {
+      "table": "qr_sessions",
+      "schema": "public",
+      "rls_enabled": true,
+      "primary_key": "session_id",
+      "columns": [
+        { "name": "session_id",    "type": "bigint",                  "nullable": false, "identity": true },
+        { "name": "classroom_id",  "type": "bigint",                  "nullable": false },
+        { "name": "session_token", "type": "character varying",        "nullable": true,  "default": "''" },
+        { "name": "expires_at",    "type": "timestamp with time zone", "nullable": true  }
+      ],
+      "foreign_keys": [],
+      "notes": "classroom_id has no FK constraint to CLASSROOMS — consider adding it"
+    }
+  ],
+  "issues_found": [
+    {
+      "severity": "critical",
+      "table": "attendance_methods",
+      "issue": "RLS is disabled — exposed to anon key",
+      "remediation": "ALTER TABLE public.attendance_methods ENABLE ROW LEVEL SECURITY;"
+    },
+    {
+      "severity": "critical",
+      "table": "attendance_statuses",
+      "issue": "RLS is disabled — exposed to anon key",
+      "remediation": "ALTER TABLE public.attendance_statuses ENABLE ROW LEVEL SECURITY;"
+    },
+    {
+      "severity": "warning",
+      "table": "USER",
+      "issue": "role_id FK column is type text but ROLE.role_id is bigint — FK constraint cannot be enforced"
+    },
+    {
+      "severity": "warning",
+      "table": "TEACHERS",
+      "issue": "department_id is smallint but DEPARTMENT.department_id is bigint — type mismatch, no FK constraint"
+    },
+    {
+      "severity": "warning",
+      "table": "attendance_logs",
+      "issue": "student_id and classroom_id have no FK constraints defined"
+    },
+    {
+      "severity": "warning",
+      "table": "qr_sessions",
+      "issue": "classroom_id has no FK constraint to CLASSROOMS"
+    },
+    {
+      "severity": "info",
+      "table": "FACE_ENCODINGS",
+      "issue": "registered_at is time only — likely should be timestamptz to record the full date"
+    },
+    {
+      "severity": "info",
+      "table": "STUDENTS",
+      "issue": "enrollment_date stored as text — consider using date or timestamptz type"
+    }
+  ]
+}

@@ -20,7 +20,7 @@ namespace FacePass.Management
             }
             else if (role.ToLower() == "teacher")
             {
-                MainContent.Content = new TeacherDashboard();
+                MainContent.Content = new TeacherDashboard(userId);
             }
             else
             {

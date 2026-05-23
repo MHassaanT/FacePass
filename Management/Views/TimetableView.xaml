@@ -1,0 +1,71 @@
+<UserControl x:Class="FacePass.Management.Views.TimetableView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#0D0D0D">
+    <Grid Margin="25">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="Timetable" FontSize="26" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="Your weekly assigned academic lectures and lab schedules" FontSize="14" Foreground="#88FFFFFF" Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Background="#1A1A1A" CornerRadius="8" BorderBrush="#333" BorderThickness="1" Padding="15">
+            <DataGrid x:Name="TimetableGrid" Background="Transparent" Foreground="White" 
+                      BorderThickness="0" RowBackground="#1A1A1A" AlternatingRowBackground="#151515"
+                      AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="None"
+                      CanUserAddRows="False" CanUserResizeRows="False" SelectionMode="Single"
+                      HeadersVisibility="Column" HorizontalGridLinesBrush="#222">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Day" Binding="{Binding day_of_week}" Width="150"/>
+                    <DataGridTextColumn Header="Subject" Binding="{Binding course_name}" Width="*"/>
+                    <DataGridTextColumn Header="Start Time" Binding="{Binding start_time_formatted}" Width="150"/>
+                    <DataGridTextColumn Header="End Time" Binding="{Binding end_time_formatted}" Width="150"/>
+                </DataGrid.Columns>
+                <DataGrid.Resources>
+                    <!-- Header Styling -->
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="#00E676"/>
+                        <Setter Property="Padding" Value="10,8"/>
+                        <Setter Property="FontWeight" Value="Bold"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="BorderBrush" Value="#333"/>
+                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                    </Style>
+                    <!-- Row Styling -->
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="BorderBrush" Value="#222"/>
+                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                        <Setter Property="Padding" Value="5"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#2A2A2A"/>
+                                <Setter Property="Foreground" Value="#00E676"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                    <!-- Cell Styling -->
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="Padding" Value="10"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="DataGridCell">
+                                    <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
+                                        <ContentPresenter VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGrid.Resources>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
