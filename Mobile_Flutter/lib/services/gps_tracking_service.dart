@@ -4,7 +4,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class GpsTrackingService {
-  // Singleton
   static final GpsTrackingService _instance = GpsTrackingService._internal();
   factory GpsTrackingService() => _instance;
   GpsTrackingService._internal();
@@ -13,16 +12,25 @@ class GpsTrackingService {
   DateTime? outOfRangeStartTime;
   bool isTracking = false;
 
-  // ValueNotifier so Dashboard can show the green dot
   final ValueNotifier<bool> trackingActive = ValueNotifier(false);
 
   String? _studentId;
-  String? _classId;
+  List<String> _courseIds = [];
 
-  void startTracking(String studentId, String classId) {
+  static const _days = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  void startTracking(String studentId, List<String> courseIds) {
     if (isTracking) return;
     _studentId = studentId;
-    _classId = classId;
+    _courseIds = courseIds;
     isTracking = true;
     trackingActive.value = true;
 
@@ -47,21 +55,24 @@ class GpsTrackingService {
   Future<void> _onTick() async {
     try {
       final now = DateTime.now();
-      final dayOfWeek = now.weekday; // 1=Mon, 7=Sun
+      final dayName = _days[now.weekday - 1];
 
-      // Step a: Check if there's an active class right now
-      final timetableResp = await Supabase.instance.client
-          .from('timetable')
-          .select('course_id, classroom_id, start_time, end_time')
-          .eq('class_id', _classId!)
-          .eq('day_of_week', dayOfWeek);
-
-      if (timetableResp == null || (timetableResp as List).isEmpty) {
+      if (_courseIds.isEmpty) {
         outOfRangeStartTime = null;
         return;
       }
 
-      // Filter active class client-side
+      final timetableResp = await Supabase.instance.client
+          .from('timetable')
+          .select('course_id, start_time, end_time')
+          .inFilter('course_id', _courseIds)
+          .eq('day_of_week', dayName);
+
+      if (timetableResp.isEmpty) {
+        outOfRangeStartTime = null;
+        return;
+      }
+
       final timeNow = TimeOfDay.fromDateTime(now);
       Map<String, dynamic>? activeClass;
 
@@ -83,73 +94,59 @@ class GpsTrackingService {
         }
       }
 
-      // Step c: No active class
       if (activeClass == null) {
         outOfRangeStartTime = null;
         return;
       }
 
-      // Step d: Get classroom GPS
-      final classroomId = activeClass['classroom_id'];
       final courseId = activeClass['course_id'];
 
       final classroomResp = await Supabase.instance.client
-          .from('classrooms')
-          .select('latitude, longitude')
-          .eq('id', classroomId)
+          .from('CLASSROOMS')
+          .select('classroom_id, latitude, longitude')
+          .limit(1)
           .maybeSingle();
 
       if (classroomResp == null) return;
 
+      final classroomId = classroomResp['classroom_id'];
       final targetLat = (classroomResp['latitude'] as num).toDouble();
       final targetLng = (classroomResp['longitude'] as num).toDouble();
 
-      // Step e: Get current GPS
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
       if (permission != LocationPermission.always &&
-          permission != LocationPermission.whileInUse) return;
+          permission != LocationPermission.whileInUse) {
+        return;
+      }
 
       final pos = await Geolocator.getCurrentPosition();
 
-      // Step f: Calculate distance
       final dist = Geolocator.distanceBetween(
           pos.latitude, pos.longitude, targetLat, targetLng);
 
-      // Step g: Check 200m range
-      if (dist > 200) {
+      if (dist > 20) {
         outOfRangeStartTime ??= DateTime.now();
 
         final minutesOut =
             DateTime.now().difference(outOfRangeStartTime!).inMinutes;
 
         if (minutesOut >= 10) {
-          // Get student record id
-          final studentResp = await Supabase.instance.client
-              .from('students')
-              .select('id')
-              .eq('user_id', _studentId!)
-              .maybeSingle();
-
-          if (studentResp == null) return;
-
           await Supabase.instance.client.from('attendance_logs').insert({
-            'student_id': studentResp['id'],
+            'student_id': _studentId,
             'course_id': courseId,
             'classroom_id': classroomId,
-            'method': 'gps_auto',
-            'status': 'absent',
-            'flagged_reason': 'Out of 200m range for 10+ minutes',
+            'method_id': 4,
+            'status_id': 4,
+            'flagged_reason': 'Out of 20m range for 10+ minutes',
             'timestamp': DateTime.now().toUtc().toIso8601String(),
           });
 
-          // Reset so it doesn't log again for same session
           outOfRangeStartTime = null;
         }
       } else {
-        // Step h: In range, reset timer
         outOfRangeStartTime = null;
       }
     } catch (e) {

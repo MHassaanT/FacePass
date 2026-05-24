@@ -1,4 +1,3 @@
-using System;
 using System.Windows;
 using FacePass.Management.Views;
 
@@ -6,14 +5,13 @@ namespace FacePass.Management
 {
     public partial class MainWindow : Window
     {
-        public MainWindow(string role, string userName, Guid userId)
+        public MainWindow(string role, string userName, long userId)
         {
             InitializeComponent();
             
             UserNameLabel.Text = $"Welcome, {userName}";
             RoleLabel.Text = $"| {role.ToUpper()} PORTAL";
 
-            // Role-based view switching
             if (role.ToLower() == "admin")
             {
                 MainContent.Content = new AdminDashboard(userId);

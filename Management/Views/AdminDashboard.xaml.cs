@@ -2,16 +2,16 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Net.Http;
 using System.Text;
+using FacePass.Management.Services;
+using Newtonsoft.Json.Linq;
 
 namespace FacePass.Management.Views
 {
     public partial class AdminDashboard : UserControl
     {
-        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
-        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
-        private readonly Guid _currentUserId;
+        private readonly long _currentUserId;
 
-        public AdminDashboard(Guid currentUserId)
+        public AdminDashboard(long currentUserId)
         {
             _currentUserId = currentUserId;
             InitializeComponent();
@@ -33,14 +33,23 @@ namespace FacePass.Management.Views
         {
             try 
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
                 
-                var resp = await client.GetAsync($"{_baseUrl}/rest/v1/users?select=*&order=name.asc");
+                var resp = await client.GetAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/USER?select=*,ROLE(role_name)&order=first_name.asc");
                 resp.EnsureSuccessStatusCode();
                 
                 var json = await resp.Content.ReadAsStringAsync();
-                var users = Newtonsoft.Json.Linq.JArray.Parse(json);
+                var users = JArray.Parse(json);
+
+                foreach (JObject user in users)
+                {
+                    var first = user["first_name"]?.ToString() ?? "";
+                    var last = user["last_name"]?.ToString() ?? "";
+                    user["name"] = $"{first} {last}".Trim();
+                    user["role"] = JsonEmbedHelper.RoleNameFromUser(user);
+                    user["id"] = user["user_id"]?.ToString() ?? "";
+                }
+
                 UsersGrid.ItemsSource = users;
             }
             catch (System.Exception ex)
@@ -53,19 +62,18 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
 
-                var resp = await client.GetAsync($"{_baseUrl}/rest/v1/audit_logs?select=*,actor_id(name)&order=created_at.desc&limit=100");
+                var resp = await client.GetAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/audit_logs?select=*,USER!actor_id(first_name,last_name)&order=created_at.desc&limit=100");
                 resp.EnsureSuccessStatusCode();
 
                 var json = await resp.Content.ReadAsStringAsync();
-                var logs = Newtonsoft.Json.Linq.JArray.Parse(json);
+                var logs = JArray.Parse(json);
                 
-                // Flatten actor name for easier binding
-                foreach (var log in logs)
+                foreach (JObject log in logs)
                 {
-                    log["ActorName"] = log["actor_id"]?["name"] ?? "System Admin";
+                    var actorName = JsonEmbedHelper.FullName(log, "USER");
+                    log["ActorName"] = actorName == "Unknown" ? "System Admin" : actorName;
                     log["Timestamp"] = log["created_at"];
                 }
 
@@ -83,8 +91,7 @@ namespace FacePass.Management.Views
             EditUserBtn.IsEnabled = hasSelection;
             DeleteUserBtn.IsEnabled = hasSelection;
 
-            // Enable Assign Class only if the selected user is a student
-            if (UsersGrid.SelectedItem is Newtonsoft.Json.Linq.JObject selected)
+            if (UsersGrid.SelectedItem is JObject selected)
             {
                 AssignClassBtn.IsEnabled = selected["role"]?.ToString() == "student";
             }
@@ -96,7 +103,7 @@ namespace FacePass.Management.Views
 
         private void AssignClass_Click(object sender, RoutedEventArgs e)
         {
-            if (UsersGrid.SelectedItem is Newtonsoft.Json.Linq.JObject selected)
+            if (UsersGrid.SelectedItem is JObject selected)
             {
                 if (selected["role"]?.ToString() != "student")
                 {
@@ -104,7 +111,7 @@ namespace FacePass.Management.Views
                     return;
                 }
 
-                Guid userId = Guid.Parse(selected["id"].ToString());
+                long userId = long.Parse(selected["id"]!.ToString());
                 string name = selected["name"]?.ToString();
                 
                 var dialog = new StudentAssignmentDialog(userId, name, _currentUserId);
@@ -118,7 +125,7 @@ namespace FacePass.Management.Views
 
         private void EditUser_Click(object sender, RoutedEventArgs e)
         {
-            if (UsersGrid.SelectedItem is Newtonsoft.Json.Linq.JObject selected)
+            if (UsersGrid.SelectedItem is JObject selected)
             {
                 var dialog = new UserDialog(_currentUserId, selected);
                 dialog.Owner = Window.GetWindow(this);
@@ -131,7 +138,7 @@ namespace FacePass.Management.Views
 
         private async void DeleteUser_Click(object sender, RoutedEventArgs e)
         {
-            if (UsersGrid.SelectedItem is Newtonsoft.Json.Linq.JObject selected)
+            if (UsersGrid.SelectedItem is JObject selected)
             {
                 string name = selected["name"]?.ToString();
                 string id = selected["id"]?.ToString();
@@ -143,19 +150,17 @@ namespace FacePass.Management.Views
                 {
                     try
                     {
-                        using var client = new HttpClient();
-                        client.DefaultRequestHeaders.Add("apikey", _anonKey);
-                        var resp = await client.DeleteAsync($"{_baseUrl}/rest/v1/users?id=eq.{id}");
+                        using var client = SupabaseRestClient.Create();
+                        var resp = await client.DeleteAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/USER?user_id=eq.{id}");
                         resp.EnsureSuccessStatusCode();
 
-                        // Audit Log
-                        var logPayload = new Newtonsoft.Json.Linq.JObject
+                        var logPayload = new JObject
                         {
                             ["actor_id"] = _currentUserId,
                             ["action"] = "DELETE_USER",
                             ["metadata"] = $"Deleted user: {name} ({selected["email"]})"
                         };
-                        await client.PostAsync($"{_baseUrl}/rest/v1/audit_logs", new StringContent(logPayload.ToString(), Encoding.UTF8, "application/json"));
+                        await client.PostAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/audit_logs", new StringContent(logPayload.ToString(), Encoding.UTF8, "application/json"));
 
                         RefreshUsers_Click(null!, null!);
                     }
@@ -182,18 +187,19 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
 
-                var resp = await client.GetAsync($"{_baseUrl}/rest/v1/timetable?select=*,courses(name)&order=day_of_week.asc,start_time.asc");
+                var resp = await client.GetAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/timetable?select=*,COURSES(course_name)&order=day_of_week.asc,start_time.asc");
                 resp.EnsureSuccessStatusCode();
 
                 var json = await resp.Content.ReadAsStringAsync();
-                var entries = Newtonsoft.Json.Linq.JArray.Parse(json);
+                var entries = JArray.Parse(json);
 
                 foreach (var entry in entries)
                 {
-                    entry["course_name"] = entry["courses"]?["name"] ?? "Unknown";
+                    entry["course_name"] = JsonEmbedHelper.GetField(entry, "COURSES", "course_name");
+                    if (string.IsNullOrEmpty(entry["course_name"]?.ToString()))
+                        entry["course_name"] = "Unknown";
                 }
 
                 TimetableGrid.ItemsSource = entries;
@@ -216,7 +222,7 @@ namespace FacePass.Management.Views
 
         private void EditSlot_Click(object sender, RoutedEventArgs e)
         {
-            if (TimetableGrid.SelectedItem is Newtonsoft.Json.Linq.JObject selected)
+            if (TimetableGrid.SelectedItem is JObject selected)
             {
                 var dialog = new TimetableDialog(selected);
                 dialog.Owner = Window.GetWindow(this);

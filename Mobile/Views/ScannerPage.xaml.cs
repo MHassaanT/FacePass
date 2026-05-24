@@ -13,8 +13,8 @@ namespace FacePass.Mobile.Views
         // Mock Classroom Data - In production, this would be fetched from the API based on current time
         private const double TargetLat = 40.7128; 
         private const double TargetLng = -74.0060;
-        private readonly Guid _courseId = Guid.NewGuid(); // Placeholder
-        private readonly Guid _classroomId = Guid.NewGuid(); // Placeholder
+        private readonly long _courseId = 1;
+        private readonly long _classroomId = 1;
 
         public ScannerPage(GeofencingService geofence, SupabaseMobileService supabase)
         {
@@ -65,7 +65,7 @@ namespace FacePass.Mobile.Views
             {
                 // 1. Parse Payload
                 var payload = JsonConvert.DeserializeObject<dynamic>(result.Value);
-                string sessionGuid = payload.session_id;
+                string sessionGuid = payload.session_guid;
                 DateTime expiresAt = payload.expires_at;
 
                 // 2. Validate Expiry
@@ -78,7 +78,7 @@ namespace FacePass.Mobile.Views
 
                 // 3. Log Attendance
                 // In a real app, studentId comes from the logged-in user session
-                Guid studentId = Guid.NewGuid(); 
+                long studentId = 1;
 
                 await _supabase.LogAttendance(studentId, _courseId, _classroomId, "qr", "present");
 

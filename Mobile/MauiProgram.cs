@@ -26,8 +26,8 @@ namespace FacePass.Mobile
             // Register Services
             builder.Services.AddSingleton<GeofencingService>();
             builder.Services.AddSingleton(new SupabaseMobileService(
-                "https://YOUR-PROJECT.supabase.co", 
-                "YOUR-ANON-KEY"
+                "https://mfcyozrkizrbrtpfihdj.supabase.co",
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE"
             ));
 
             // Register Pages

@@ -30,11 +30,8 @@ namespace FacePass.Kiosk
                     MessageBox.Show("Warning: Supabase URL is not configured in appsettings.json. The application will start but biometric features may fail.", "Configuration Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
 
-                var classroomIdStr = config["Kiosk:ClassroomId"];
-                var courseIdStr    = config["Kiosk:CourseId"];
-
-                if (!Guid.TryParse(classroomIdStr, out var classroomId)) classroomId = Guid.Empty;
-                if (!Guid.TryParse(courseIdStr, out var courseId)) courseId = Guid.Empty;
+                var classroomId = long.TryParse(config["Kiosk:ClassroomId"], out var cid) ? cid : 0L;
+                var courseId    = long.TryParse(config["Kiosk:CourseId"], out var cosid) ? cosid : 0L;
 
                 // Check for Haar Cascades
                 string faceXml = Path.Combine(AppContext.BaseDirectory, "haarcascade_frontalface_default.xml");

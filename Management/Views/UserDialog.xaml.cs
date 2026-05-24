@@ -1,21 +1,88 @@
 using System;
-using System.Windows;
-using System.Windows.Controls;
 using System.Net.Http;
 using System.Text;
+using System.Windows;
+using System.Windows.Controls;
 using Newtonsoft.Json.Linq;
-using BCrypt.Net;
+using FacePass.Management.Services;
 
 namespace FacePass.Management.Views
 {
     public partial class UserDialog : Window
     {
-        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
-        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
-        private readonly Guid _adminId;
+        private readonly long _adminId;
         private readonly JObject _existingUser;
 
-        public UserDialog(Guid adminId, JObject existingUser = null)
+        private static async Task<long> ResolveRoleIdAsync(HttpClient client, string roleName)
+        {
+            var normalized = roleName.Trim().ToLowerInvariant();
+            var url =
+                $"{SupabaseRestClient.BaseUrl}/rest/v1/ROLE?select=role_id,role_name";
+            var resp = await client.GetAsync(url);
+            resp.EnsureSuccessStatusCode();
+
+            var roles = JArray.Parse(await resp.Content.ReadAsStringAsync());
+            foreach (JObject role in roles)
+            {
+                var name = role["role_name"]?.ToString()?.Trim().ToLowerInvariant();
+                if (name == normalized)
+                    return long.Parse(role["role_id"]!.ToString());
+            }
+
+            throw new InvalidOperationException(
+                $"Role \"{roleName}\" was not found in the ROLE table. " +
+                "Run Database/seed_lookup_tables.sql in the Supabase SQL Editor.");
+        }
+
+        private static async Task EnsureProfileRowAsync(HttpClient client, long userId, string roleName)
+        {
+            var role = roleName.Trim().ToLowerInvariant();
+            if (role == "student")
+            {
+                var payload = new JObject
+                {
+                    ["student_id"] = userId,
+                    ["enrollment_date"] = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                    ["status"] = "active"
+                };
+                var req = new HttpRequestMessage(HttpMethod.Post,
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/STUDENTS")
+                {
+                    Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json")
+                };
+                req.Headers.Add("Prefer", "resolution=ignore-duplicates");
+                var resp = await client.SendAsync(req);
+                if (!resp.IsSuccessStatusCode && (int)resp.StatusCode != 409)
+                    resp.EnsureSuccessStatusCode();
+            }
+            else if (role == "teacher")
+            {
+                var deptResp = await client.GetAsync(
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/DEPARTMENT?select=department_id&limit=1");
+                deptResp.EnsureSuccessStatusCode();
+                var depts = JArray.Parse(await deptResp.Content.ReadAsStringAsync());
+                if (depts.Count == 0)
+                    return;
+
+                var payload = new JObject
+                {
+                    ["teacher_id"] = userId,
+                    ["hire_date"] = DateTime.UtcNow.ToString("o"),
+                    ["department_id"] = depts[0]["department_id"]
+                };
+                var req = new HttpRequestMessage(HttpMethod.Post,
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/TEACHERS")
+                {
+                    Content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json")
+                };
+                req.Headers.Add("Prefer", "resolution=ignore-duplicates");
+                var resp = await client.SendAsync(req);
+                if (!resp.IsSuccessStatusCode && (int)resp.StatusCode != 409)
+                    resp.EnsureSuccessStatusCode();
+            }
+        }
+
+        public UserDialog(long adminId, JObject existingUser = null)
         {
             _adminId = adminId;
             _existingUser = existingUser;
@@ -49,15 +116,20 @@ namespace FacePass.Management.Views
 
             try
             {
-                // 1. Prepare Payload
+                var nameParts = NameBox.Text.Trim().Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                var roleName = (RoleCombo.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "student";
+
+                using var client = SupabaseRestClient.Create();
+                var roleId = await ResolveRoleIdAsync(client, roleName);
+
                 var payload = new JObject
                 {
-                    ["name"] = NameBox.Text,
+                    ["first_name"] = nameParts.Length > 0 ? nameParts[0] : NameBox.Text.Trim(),
+                    ["last_name"] = nameParts.Length > 1 ? nameParts[1] : "",
                     ["email"] = EmailBox.Text,
-                    ["role"] = (RoleCombo.SelectedItem as ComboBoxItem)?.Content.ToString()
+                    ["role_id"] = roleId
                 };
 
-                // Hash Password ONLY if provided (required for new, optional for edit)
                 if (!string.IsNullOrWhiteSpace(PassBox.Password))
                 {
                     payload["password_hash"] = BCrypt.Net.BCrypt.HashPassword(PassBox.Password);
@@ -68,50 +140,69 @@ namespace FacePass.Management.Views
                     return;
                 }
 
-                // 2. Save to Supabase
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
-                client.DefaultRequestHeaders.Add("Prefer", "return=representation");
                 var content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json");
-                
+
                 HttpResponseMessage resp;
                 if (_existingUser == null)
                 {
-                    resp = await client.PostAsync($"{_baseUrl}/rest/v1/users", content);
-                }
-                else
-                {
-                    string id = _existingUser["id"].ToString();
-                    var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_baseUrl}/rest/v1/users?id=eq.{id}")
+                    var request = new HttpRequestMessage(HttpMethod.Post, $"{SupabaseRestClient.BaseUrl}/rest/v1/USER")
                     {
                         Content = content
                     };
+                    request.Headers.Add("Prefer", "return=representation");
                     resp = await client.SendAsync(request);
                 }
-                resp.EnsureSuccessStatusCode();
+                else
+                {
+                    string id = _existingUser["id"]?.ToString() ?? _existingUser["user_id"]?.ToString();
+                    var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{SupabaseRestClient.BaseUrl}/rest/v1/USER?user_id=eq.{id}")
+                    {
+                        Content = content
+                    };
+                    request.Headers.Add("Prefer", "return=representation");
+                    resp = await client.SendAsync(request);
+                }
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    var errBody = await resp.Content.ReadAsStringAsync();
+                    throw new HttpRequestException(
+                        $"{(int)resp.StatusCode} {resp.ReasonPhrase}: {errBody}");
+                }
 
                 var respJson = await resp.Content.ReadAsStringAsync();
                 var results = JArray.Parse(respJson);
                 var userObj = results[0] as JObject;
-                Guid userId = Guid.Parse(userObj["id"].ToString());
+                long userId = long.Parse(userObj["user_id"]!.ToString());
 
-                // 3. Audit Log Entry
+                if (_existingUser == null)
+                {
+                    try
+                    {
+                        await EnsureProfileRowAsync(client, userId, roleName);
+                    }
+                    catch (Exception profileEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[UserDialog] Profile row: {profileEx.Message}");
+                    }
+                }
+
                 try
                 {
                     var logPayload = new JObject
                     {
-                        ["actor_id"] = _adminId == Guid.Empty ? (Guid?)null : _adminId,
+                        ["actor_id"] = _adminId == 0 ? null : _adminId,
                         ["action"] = _existingUser == null ? "CREATE_USER" : "UPDATE_USER",
-                        ["metadata"] = $"{(_existingUser == null ? "Created" : "Updated")} user: {EmailBox.Text} ({payload["role"]})"
+                        ["metadata"] = $"{(_existingUser == null ? "Created" : "Updated")} user: {EmailBox.Text} ({roleName})"
                     };
-                    await client.PostAsync($"{_baseUrl}/rest/v1/audit_logs", new StringContent(logPayload.ToString(), Encoding.UTF8, "application/json"));
+                    await client.PostAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/audit_logs", new StringContent(logPayload.ToString(), Encoding.UTF8, "application/json"));
                 }
                 catch { }
 
                 MessageBox.Show("User saved successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                // 4. Teacher Assignment Hook (New users only)
-                if (payload["role"]?.ToString() == "teacher" && _existingUser == null)
+                if (roleName == "teacher" && _existingUser == null)
                 {
                     var assignDialog = new TeacherAssignmentDialog(userId, NameBox.Text, EmailBox.Text);
                     assignDialog.Owner = Window.GetWindow(this);

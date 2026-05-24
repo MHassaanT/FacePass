@@ -27,8 +27,8 @@ namespace FacePass.Kiosk.ViewModels
         private readonly Dispatcher _ui;
 
         // ── Config ────────────────────────────────────────────────────────────
-        private readonly Guid _classroomId;
-        private readonly Guid _courseId;
+        private readonly long _classroomId;
+        private readonly long _courseId;
 
         // ── State ─────────────────────────────────────────────────────────────
         private bool _awaitingLiveness;
@@ -126,8 +126,8 @@ namespace FacePass.Kiosk.ViewModels
             LivenessChallengeService liveness,
             QrSessionService qrService,
             AttendanceService attendance,
-            Guid classroomId,
-            Guid courseId)
+            long classroomId,
+            long courseId)
         {
             _camera = camera;
             _detector = detector;
@@ -360,10 +360,10 @@ namespace FacePass.Kiosk.ViewModels
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
-        private static Guid? FindClosestMatch(Dictionary<Guid, byte[]> stored, byte[] live)
+        private static long? FindClosestMatch(Dictionary<long, byte[]> stored, byte[] live)
         {
             const double Threshold = 0.6;
-            Guid? best = null;
+            long? best = null;
             double bestDist = double.MaxValue;
 
             foreach (var kv in stored)

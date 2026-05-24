@@ -6,12 +6,12 @@ namespace FacePass.Management.Views
 {
     public partial class TeacherDashboard : UserControl
     {
-        private readonly Guid _teacherId;
+        private readonly long _teacherId;
         private TimetableView? _timetableView;
         private StudentsView? _studentsView;
         private CurrentView? _currentView;
 
-        public TeacherDashboard(Guid teacherId)
+        public TeacherDashboard(long teacherId)
         {
             InitializeComponent();
             _teacherId = teacherId;

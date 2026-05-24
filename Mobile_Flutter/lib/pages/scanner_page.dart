@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -137,9 +139,10 @@ class _ScannerPageState extends State<ScannerPage> {
     });
 
     try {
-      // STEP A: Parse QR string
-      final parts = data.split('|');
-      if (parts.length != 3) {
+      final Map<String, dynamic> payload;
+      try {
+        payload = jsonDecode(data) as Map<String, dynamic>;
+      } catch (_) {
         setState(() {
           _isProcessing = false;
           _status = '❌ Invalid QR Code format.';
@@ -151,15 +154,24 @@ class _ScannerPageState extends State<ScannerPage> {
         return;
       }
 
-      final sessionGuid = parts[0];
-      final courseId = parts[1];
-      final classroomId = parts[2];
+      final sessionGuid = payload['session_guid'] as String?;
+      final classroomIdStr = payload['classroom_id']?.toString();
 
-      // STEP B: Validate session from Supabase
+      if (sessionGuid == null || classroomIdStr == null) {
+        setState(() {
+          _isProcessing = false;
+          _status = '❌ Invalid QR Code format.';
+          _statusColor = Colors.redAccent;
+        });
+        return;
+      }
+
+      final classroomId = int.parse(classroomIdStr);
+
       setState(() => _status = 'Checking session...');
       final sessionResp = await Supabase.instance.client
           .from('qr_sessions')
-          .select('id, expires_at')
+          .select('session_id, expires_at, classroom_id')
           .eq('session_guid', sessionGuid)
           .eq('classroom_id', classroomId)
           .maybeSingle();
@@ -183,12 +195,11 @@ class _ScannerPageState extends State<ScannerPage> {
         return;
       }
 
-      // STEP C: Get classroom GPS from Supabase
       setState(() => _status = 'Checking your location...');
       final classroomResp = await Supabase.instance.client
-          .from('classrooms')
-          .select('id, name, latitude, longitude')
-          .eq('id', classroomId)
+          .from('CLASSROOMS')
+          .select('classroom_id, latitude, longitude')
+          .eq('classroom_id', classroomId)
           .maybeSingle();
 
       if (classroomResp == null) {
@@ -203,7 +214,6 @@ class _ScannerPageState extends State<ScannerPage> {
       final targetLat = (classroomResp['latitude'] as num).toDouble();
       final targetLng = (classroomResp['longitude'] as num).toDouble();
 
-      // STEP D: Check geofence
       final bool inRange = await _checkGeofenceWithCoords(targetLat, targetLng);
       if (!inRange) {
         setState(() {
@@ -217,17 +227,27 @@ class _ScannerPageState extends State<ScannerPage> {
         return;
       }
 
-      // STEP E: Mark attendance
       setState(() => _status = 'Marking attendance...');
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final authUser = Supabase.instance.client.auth.currentUser!;
 
-      final studentResp = await Supabase.instance.client
-          .from('students')
-          .select('id')
-          .eq('user_id', userId)
+      final userRow = await Supabase.instance.client
+          .from('USER')
+          .select('user_id')
+          .eq('email', authUser.email ?? '')
           .maybeSingle();
 
-      if (studentResp == null) {
+      String? studentId = userRow?['user_id']?.toString();
+
+      if (studentId == null) {
+        final studentResp = await Supabase.instance.client
+            .from('STUDENTS')
+            .select('student_id')
+            .eq('student_id', authUser.id)
+            .maybeSingle();
+        studentId = studentResp?['student_id']?.toString();
+      }
+
+      if (studentId == null) {
         setState(() {
           _isProcessing = false;
           _status = '❌ Student record not found.';
@@ -236,16 +256,34 @@ class _ScannerPageState extends State<ScannerPage> {
         return;
       }
 
+      final enrollments = await Supabase.instance.client
+          .from('COURSE_ENROLLMENTS')
+          .select('course_id')
+          .eq('student_id', studentId)
+          .limit(1);
+
+      final courseId = enrollments.isNotEmpty
+          ? enrollments.first['course_id']
+          : null;
+
+      if (courseId == null) {
+        setState(() {
+          _isProcessing = false;
+          _status = '❌ No course enrollment found.';
+          _statusColor = Colors.redAccent;
+        });
+        return;
+      }
+
       await Supabase.instance.client.from('attendance_logs').insert({
-        'student_id': studentResp['id'],
+        'student_id': studentId,
         'course_id': courseId,
         'classroom_id': classroomId,
-        'method': 'qr',
-        'status': 'present',
+        'method_id': 2,
+        'status_id': 1,
         'timestamp': DateTime.now().toUtc().toIso8601String(),
       });
 
-      // STEP F: Success
       setState(() {
         _status = '✅ Attendance Marked!';
         _statusColor = const Color(0xFF00E676);
@@ -267,12 +305,6 @@ class _ScannerPageState extends State<ScannerPage> {
     }
   }
 
-  Future<bool> _checkGeofence() async {
-    const double targetLat = 0.0;
-    const double targetLng = 0.0;
-    return _checkGeofenceWithCoords(targetLat, targetLng);
-  }
-
   Future<bool> _checkGeofenceWithCoords(
       double targetLat, double targetLng) async {
     LocationPermission permission = await Geolocator.checkPermission();
@@ -285,7 +317,7 @@ class _ScannerPageState extends State<ScannerPage> {
       Position pos = await Geolocator.getCurrentPosition();
       double dist = Geolocator.distanceBetween(
           pos.latitude, pos.longitude, targetLat, targetLng);
-      return dist <= 200; // 200 meters
+      return dist <= 20;
     }
     return false;
   }

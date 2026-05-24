@@ -16,9 +16,9 @@ namespace FacePass.Kiosk.Services
     public class QrSessionService
     {
         private readonly SupabaseFaceRepository _repo;
-        private readonly Guid _classroomId;
+        private readonly long _classroomId;
 
-        public QrSessionService(SupabaseFaceRepository repo, Guid classroomId)
+        public QrSessionService(SupabaseFaceRepository repo, long classroomId)
         {
             _repo = repo;
             _classroomId = classroomId;
@@ -36,13 +36,13 @@ namespace FacePass.Kiosk.Services
             if (row == null)
                 throw new InvalidOperationException("Supabase did not return the created QR session row.");
 
-            var sessionGuid = row["id"]!.ToString();     // Supabase auto-generated UUID
+            var sessionGuid = row["session_guid"]!.ToString();
             var classroomId = _classroomId.ToString();
             var expiresStr  = expiresAt.ToString("o");
 
             var payload = JsonConvert.SerializeObject(new
             {
-                session_id   = sessionGuid,
+                session_guid = sessionGuid,
                 classroom_id = classroomId,
                 expires_at   = expiresStr
             });

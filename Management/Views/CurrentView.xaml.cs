@@ -5,29 +5,40 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Newtonsoft.Json.Linq;
+using FacePass.Management.Services;
 
 namespace FacePass.Management.Views
 {
     public partial class CurrentView : UserControl
     {
-        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
-        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
-        private readonly Guid _teacherId;
+        private readonly long _teacherId;
         private readonly DispatcherTimer _refreshTimer;
-        private string _classroomName = "Room 101"; // Default room name fallback
+        private string _classroomName = "Room 101";
 
-        public CurrentView(Guid teacherId)
+        private static readonly Dictionary<int, string> MethodNames = new()
+        {
+            [1] = "face",
+            [2] = "qr",
+            [3] = "manual",
+            [4] = "gps_auto"
+        };
+
+        private static readonly Dictionary<int, string> StatusNames = new()
+        {
+            [1] = "present",
+            [2] = "suspicious",
+            [3] = "manual_override",
+            [4] = "absent"
+        };
+
+        public CurrentView(long teacherId)
         {
             InitializeComponent();
             _teacherId = teacherId;
 
-            // Load initial dynamic room number from Supabase classrooms
             LoadRoomName();
-
-            // Fetch initial active slot and logs
             RefreshData();
 
-            // Set up dispatcher timer for 30s auto-refresh
             _refreshTimer = new DispatcherTimer();
             _refreshTimer.Interval = TimeSpan.FromSeconds(30);
             _refreshTimer.Tick += Timer_Tick;
@@ -38,11 +49,9 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
                 
-                // Fetch first classroom's room_number from database
-                var resp = await client.GetAsync($"{_baseUrl}/rest/v1/classrooms?select=room_number&limit=1");
+                var resp = await client.GetAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/CLASSROOMS?select=room_number&limit=1");
                 if (resp.IsSuccessStatusCode)
                 {
                     var json = await resp.Content.ReadAsStringAsync();
@@ -55,7 +64,6 @@ namespace FacePass.Management.Views
             }
             catch
             {
-                // Silent fallback to default Room 101
             }
         }
 
@@ -81,11 +89,9 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
 
-                // 1. Fetch timetable slots for this teacher
-                var url = $"{_baseUrl}/rest/v1/timetable?select=*,courses!inner(id,name,teacher_id)&courses.teacher_id=eq.{_teacherId}";
+                var url = $"{SupabaseRestClient.BaseUrl}/rest/v1/timetable?select=*,COURSES!inner(course_id,course_name,teacher_id)&COURSES.teacher_id=eq.{_teacherId}";
                 var resp = await client.GetAsync(url);
                 resp.EnsureSuccessStatusCode();
 
@@ -93,7 +99,7 @@ namespace FacePass.Management.Views
                 var slots = JArray.Parse(json);
 
                 JObject? activeSlot = null;
-                string currentDay = DateTime.Now.ToString("dddd"); // e.g. "Friday"
+                string currentDay = DateTime.Now.ToString("dddd");
                 TimeSpan currentTime = DateTime.Now.TimeOfDay;
 
                 foreach (JObject slot in slots)
@@ -118,7 +124,8 @@ namespace FacePass.Management.Views
                 if (activeSlot != null)
                 {
                     var courseIdStr = activeSlot["course_id"]?.ToString();
-                    var courseName = activeSlot["courses"]?["name"]?.ToString() ?? "Unknown Course";
+                    var courseName = JsonEmbedHelper.GetField(activeSlot, "COURSES", "course_name");
+                    if (string.IsNullOrEmpty(courseName)) courseName = "Unknown Course";
                     var startTime = FormatTime(activeSlot["start_time"]?.ToString());
                     var endTime = FormatTime(activeSlot["end_time"]?.ToString());
 
@@ -130,7 +137,7 @@ namespace FacePass.Management.Views
                         RoomText.Text = _classroomName;
                     });
 
-                    if (Guid.TryParse(courseIdStr, out var courseId))
+                    if (long.TryParse(courseIdStr, out var courseId))
                     {
                         await LoadPresentStudents(courseId);
                     }
@@ -151,16 +158,14 @@ namespace FacePass.Management.Views
             }
         }
 
-        private async Task LoadPresentStudents(Guid courseId)
+        private async Task LoadPresentStudents(long courseId)
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
 
-                // Fetch today's logs for this course
                 var todayStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
-                var url = $"{_baseUrl}/rest/v1/attendance_logs?course_id=eq.{courseId}&timestamp=gte.{todayStr}&select=*,students(users(*))&order=timestamp.desc";
+                var url = $"{SupabaseRestClient.BaseUrl}/rest/v1/attendance_logs?course_id=eq.{courseId}&timestamp=gte.{todayStr}&select=*,STUDENTS(USER(first_name,last_name))&order=timestamp.desc";
                 var resp = await client.GetAsync(url);
                 resp.EnsureSuccessStatusCode();
 
@@ -172,11 +177,8 @@ namespace FacePass.Management.Views
 
                 foreach (JObject log in logs)
                 {
-                    var student = log["students"] as JObject;
-                    var user = student?["users"] as JObject;
-                    
-                    var name = user?["name"]?.ToString() ?? 
-                               ((user?["first_name"] != null) ? $"{user["first_name"]} {user["last_name"]}" : "Unknown Student");
+                    var name = JsonEmbedHelper.FullName(log, "STUDENTS", "USER");
+                    if (name == "Unknown") name = "Unknown Student";
                     
                     var timeStr = log["timestamp"]?.ToString() ?? "";
                     if (DateTime.TryParse(timeStr, out var timestamp))
@@ -184,25 +186,29 @@ namespace FacePass.Management.Views
                         timeStr = timestamp.ToLocalTime().ToString("hh:mm:ss tt");
                     }
 
-                    var methodStr = log["method"]?.ToString() ?? "N/A";
+                    var methodId = log["method_id"]?.Value<int>() ?? 0;
+                    var methodStr = MethodNames.GetValueOrDefault(methodId, "N/A");
                     var formattedMethod = methodStr.ToLower() switch
                     {
                         "face" => "Face Biometrics",
                         "qr" => "QR Scan",
                         "manual" => "Manual Entry",
+                        "gps_auto" => "GPS Auto",
                         _ => methodStr
                     };
 
-                    var statusStr = log["status"]?.ToString() ?? "present";
+                    var statusId = log["status_id"]?.Value<int>() ?? 1;
+                    var statusStr = StatusNames.GetValueOrDefault(statusId, "present");
                     var formattedStatus = statusStr.ToLower() switch
                     {
                         "present" => "Present",
                         "suspicious" => "Suspicious",
                         "manual_override" => "Manual Override",
+                        "absent" => "Absent",
                         _ => statusStr
                     };
 
-                    if (statusStr.ToLower() == "present" || statusStr.ToLower() == "manual_override")
+                    if (statusStr == "present" || statusStr == "manual_override")
                     {
                         presentCount++;
                     }
@@ -243,7 +249,6 @@ namespace FacePass.Management.Views
 
         private void UserControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            // Stop timer to prevent memory leaks when control is unloaded
             _refreshTimer.Stop();
         }
     }

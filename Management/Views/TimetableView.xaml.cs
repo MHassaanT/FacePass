@@ -3,16 +3,15 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using Newtonsoft.Json.Linq;
+using FacePass.Management.Services;
 
 namespace FacePass.Management.Views
 {
     public partial class TimetableView : UserControl
     {
-        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
-        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
-        private readonly Guid _teacherId;
+        private readonly long _teacherId;
 
-        public TimetableView(Guid teacherId)
+        public TimetableView(long teacherId)
         {
             InitializeComponent();
             _teacherId = teacherId;
@@ -23,11 +22,9 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
 
-                // Fetch timetable slots joined with courses where teacher_id matches
-                var url = $"{_baseUrl}/rest/v1/timetable?select=*,courses!inner(name,teacher_id)&courses.teacher_id=eq.{_teacherId}";
+                var url = $"{SupabaseRestClient.BaseUrl}/rest/v1/timetable?select=*,COURSES!inner(course_name,teacher_id)&COURSES.teacher_id=eq.{_teacherId}";
                 var resp = await client.GetAsync(url);
                 resp.EnsureSuccessStatusCode();
 
@@ -36,7 +33,9 @@ namespace FacePass.Management.Views
 
                 foreach (JObject entry in entries)
                 {
-                    entry["course_name"] = entry["courses"]?["name"] ?? "Unknown";
+                    entry["course_name"] = JsonEmbedHelper.GetField(entry, "COURSES", "course_name");
+                    if (string.IsNullOrEmpty(entry["course_name"]?.ToString()))
+                        entry["course_name"] = "Unknown";
                     entry["start_time_formatted"] = FormatTime(entry["start_time"]?.ToString());
                     entry["end_time_formatted"] = FormatTime(entry["end_time"]?.ToString());
                 }

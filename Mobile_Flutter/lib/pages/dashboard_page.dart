@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/subject_attendance.dart';
 import '../services/supabase_service.dart';
+import '../utils/json_embed.dart';
 import 'scanner_page.dart';
 import 'profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,22 +24,31 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId != null) {
-        context.read<SupabaseService>().loadDashboardData(userId);
+      final authUser = Supabase.instance.client.auth.currentUser;
+      if (authUser == null) return;
 
-        final studentResp = await Supabase.instance.client
-            .from('students')
-            .select('id, class_id')
-            .eq('user_id', userId)
-            .maybeSingle();
+      final userRow = await Supabase.instance.client
+          .from('USER')
+          .select('user_id')
+          .eq('email', authUser.email ?? '')
+          .maybeSingle();
 
-        if (studentResp != null) {
-          _gpsTracker.startTracking(
-            userId,
-            studentResp['class_id'].toString(),
-          );
-        }
+      final studentId = userRow?['user_id']?.toString();
+      if (studentId == null) return;
+
+      context.read<SupabaseService>().loadDashboardData(studentId);
+
+      final enrollments = await Supabase.instance.client
+          .from('COURSE_ENROLLMENTS')
+          .select('course_id')
+          .eq('student_id', studentId);
+
+      final courseIds = enrollments
+          .map<String>((e) => e['course_id'].toString())
+          .toList();
+
+      if (courseIds.isNotEmpty) {
+        _gpsTracker.startTracking(studentId, courseIds);
       }
     });
   }
@@ -344,7 +354,7 @@ class _DashboardPageState extends State<DashboardPage> {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final item = history[index];
-        final status = item['status']?.toString().toLowerCase() ?? 'unknown';
+        final status = JsonEmbed.statusNames[item['status_id']] ?? 'unknown';
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -370,7 +380,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item['courses']?['name'] ?? 'Unknown Course',
+                      JsonEmbed.field(item, 'COURSES', 'course_name').isEmpty
+                          ? 'Unknown Course'
+                          : JsonEmbed.field(item, 'COURSES', 'course_name'),
                       style: GoogleFonts.outfit(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),

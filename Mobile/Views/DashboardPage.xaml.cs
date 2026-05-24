@@ -26,7 +26,7 @@ namespace FacePass.Mobile.Views
             try
             {
                 // Placeholder Student ID
-                Guid studentId = Guid.NewGuid();
+                long studentId = 1;
 
                 var stats = await _supabase.GetStudentStats(studentId);
                 if (stats != null)
@@ -39,14 +39,25 @@ namespace FacePass.Mobile.Views
 
                 var history = await _supabase.GetAttendanceHistory(studentId);
                 RecentHistory.Clear();
+                var statusNames = new Dictionary<int, string>
+                {
+                    [1] = "present",
+                    [2] = "suspicious",
+                    [3] = "manual_override",
+                    [4] = "absent"
+                };
+
                 foreach (var item in history)
                 {
+                    var statusId = item["status_id"]?.Value<int>() ?? 0;
+                    var statusName = statusNames.GetValueOrDefault(statusId, "unknown");
+
                     RecentHistory.Add(new
                     {
-                        course_name = item["courses"]?["name"]?.ToString(),
+                        course_name = JsonEmbedHelper.GetField(item, "COURSES", "course_name"),
                         timestamp_formatted = DateTime.Parse(item["timestamp"]?.ToString() ?? "").ToString("MMM dd, h:mm tt"),
-                        status = item["status"]?.ToString().ToUpper(),
-                        status_color = GetStatusColor(item["status"]?.ToString())
+                        status = statusName.ToUpper(),
+                        status_color = GetStatusColor(statusName)
                     });
                 }
                 AttendanceHistoryList.ItemsSource = RecentHistory;

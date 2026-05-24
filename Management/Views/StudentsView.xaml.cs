@@ -1,23 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Newtonsoft.Json.Linq;
+using FacePass.Management.Services;
 
 namespace FacePass.Management.Views
 {
     public partial class StudentsView : UserControl
     {
-        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
-        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
-        private readonly Guid _teacherId;
+        private readonly long _teacherId;
 
-        // Expose selected student information to parent view
-        public event Action<Guid, bool> StudentSelected;
+        public event Action<long, bool> StudentSelected;
 
-        public StudentsView(Guid teacherId)
+        public StudentsView(long teacherId)
         {
             InitializeComponent();
             _teacherId = teacherId;
@@ -28,49 +27,76 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
 
-                // Step 1: Get class_id for the teacher's courses (assuming single class per teacher for simplicity)
-                var classUrl = $"{_baseUrl}/rest/v1/courses?select=class_id,teacher_id&teacher_id=eq.{_teacherId}";
-                var classResp = await client.GetAsync(classUrl);
-                classResp.EnsureSuccessStatusCode();
-                var classJson = await classResp.Content.ReadAsStringAsync();
-                var classArray = JArray.Parse(classJson);
-                if (classArray.Count == 0)
+                var courseUrl = $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSES?teacher_id=eq.{_teacherId}&select=course_id";
+                var courseResp = await client.GetAsync(courseUrl);
+                courseResp.EnsureSuccessStatusCode();
+                var courseArray = JArray.Parse(await courseResp.Content.ReadAsStringAsync());
+
+                if (courseArray.Count == 0)
                 {
-                    MessageBox.Show("No class assigned to this teacher.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("No courses assigned to this teacher.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
                     StudentsGrid.ItemsSource = null;
                     return;
                 }
-                var classId = classArray[0]["class_id"]?.ToString();
-                if (string.IsNullOrEmpty(classId))
+
+                var courseIds = courseArray
+                    .Select(c => c["course_id"]!.ToString())
+                    .Where(id => !string.IsNullOrEmpty(id));
+                var courseIdList = string.Join(",", courseIds);
+
+                var enrollUrl =
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSE_ENROLLMENTS?course_id=in.({courseIdList})" +
+                    "&select=student_id,STUDENTS(status,enrollment_date,USER(first_name,last_name,email,created_at))";
+                var enrollResp = await client.GetAsync(enrollUrl);
+                enrollResp.EnsureSuccessStatusCode();
+                var enrollArray = JArray.Parse(await enrollResp.Content.ReadAsStringAsync());
+
+                if (enrollArray.Count == 0)
                 {
-                    MessageBox.Show("Unable to determine class ID.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    StudentsGrid.ItemsSource = null;
                     return;
                 }
 
-                // Step 2: Get students for that class, joining with users to fetch name and email
-                var studentsUrl = $"{_baseUrl}/rest/v1/students?select=id,user_id,face_encoding,created_at,users(name,email)&class_id=eq.{classId}";
-                var studentsResp = await client.GetAsync(studentsUrl);
-                studentsResp.EnsureSuccessStatusCode();
-                var studentsJson = await studentsResp.Content.ReadAsStringAsync();
-                var studentsArray = JArray.Parse(studentsJson);
+                var studentIds = enrollArray
+                    .Select(e => e["student_id"]!.ToString())
+                    .Distinct()
+                    .ToList();
 
-                var studentList = new List<object>();
-                foreach (JObject stu in studentsArray)
+                var faceEnrolledIds = new HashSet<string>();
+                if (studentIds.Count > 0)
                 {
-                    var user = stu["users"] as JObject;
-                    var name = user?["name"]?.ToString() ?? "Unknown";
-                    var email = user?["email"]?.ToString() ?? "Unknown";
-                    var createdAt = stu["created_at"]?.ToObject<DateTime?>();
+                    var faceUrl =
+                        $"{SupabaseRestClient.BaseUrl}/rest/v1/FACE_ENCODINGS?student_id=in.({string.Join(",", studentIds)})&select=student_id";
+                    var faceResp = await client.GetAsync(faceUrl);
+                    faceResp.EnsureSuccessStatusCode();
+                    var faceArray = JArray.Parse(await faceResp.Content.ReadAsStringAsync());
+                    foreach (var row in faceArray)
+                        faceEnrolledIds.Add(row["student_id"]!.ToString());
+                }
+
+                var seenStudents = new HashSet<string>();
+                var studentList = new List<object>();
+
+                foreach (JObject enrollment in enrollArray)
+                {
+                    var studentIdStr = enrollment["student_id"]!.ToString();
+                    if (!seenStudents.Add(studentIdStr)) continue;
+
+                    var name = JsonEmbedHelper.FullName(enrollment, "STUDENTS", "USER");
+                    var email = JsonEmbedHelper.GetNestedField(enrollment, "STUDENTS", "USER", "email");
+                    if (string.IsNullOrEmpty(email)) email = "Unknown";
+
+                    var createdAtStr = JsonEmbedHelper.GetNestedField(enrollment, "STUDENTS", "USER", "created_at");
+                    DateTime? createdAt = DateTime.TryParse(createdAtStr, out var dt) ? dt : null;
                     var dateCreated = createdAt?.ToString("dd MMM yyyy") ?? "";
-                    var faceEnc = stu["face_encoding"]?.ToString();
-                    bool enrolled = !string.IsNullOrEmpty(faceEnc);
-                    var guid = Guid.Parse(stu["id"].ToString());
+                    bool enrolled = faceEnrolledIds.Contains(studentIdStr);
+                    var sid = long.Parse(studentIdStr);
+
                     studentList.Add(new
                     {
-                        Id = guid,
+                        Id = sid,
                         Name = name,
                         Email = email,
                         DateCreated = dateCreated,
@@ -94,10 +120,8 @@ namespace FacePass.Management.Views
         private void StudentsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (StudentsGrid.SelectedItem == null) return;
-            var selected = StudentsGrid.SelectedItem;
-            // Using dynamic to extract properties
-            dynamic dyn = selected;
-            Guid id = dyn.Id;
+            dynamic dyn = StudentsGrid.SelectedItem;
+            long id = dyn.Id;
             bool enrolled = dyn.BiometricEnrolled;
             StudentSelected?.Invoke(id, enrolled);
         }

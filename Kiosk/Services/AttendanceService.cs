@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 
 namespace FacePass.Kiosk.Services
@@ -16,16 +15,10 @@ namespace FacePass.Kiosk.Services
         /// <summary>
         /// Logs an attendance event to the attendance_logs table in Supabase.
         /// </summary>
-        /// <param name="studentId">The matched student's UUID.</param>
-        /// <param name="courseId">Active course UUID.</param>
-        /// <param name="classroomId">Classroom UUID for this kiosk.</param>
-        /// <param name="method">Recognition method: "face", "qr", or "manual".</param>
-        /// <param name="status">"present", "suspicious", or "manual_override".</param>
-        /// <param name="flaggedReason">Optional reason if status is suspicious.</param>
         public Task LogAsync(
-            Guid studentId,
-            Guid courseId,
-            Guid classroomId,
+            long studentId,
+            long courseId,
+            long classroomId,
             string method,
             string status,
             string? flaggedReason = null)

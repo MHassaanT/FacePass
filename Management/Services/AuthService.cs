@@ -2,7 +2,6 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
-using BCrypt.Net;
 
 namespace FacePass.Management.Services
 {
@@ -17,22 +16,21 @@ namespace FacePass.Management.Services
             _baseUrl = baseUrl.TrimEnd('/');
             _anonKey = anonKey;
             _http = new HttpClient();
-            _http.DefaultRequestHeaders.Add("apikey", _anonKey);
+            SupabaseRestClient.Configure(_http);
         }
 
-         public async Task<(bool success, string? role, Guid? userId, string? name)> LoginAsync(string email, string password)
+         public async Task<(bool success, string? role, long? userId, string? name)> LoginAsync(string email, string password)
         {
             // --- HARDCODED ADMIN CHECK ---
             if (email == "admin@facepass.com" && password == "admin123")
             {
-                return (true, "admin", Guid.Empty, "System Admin");
+                return (true, "admin", 0L, "System Admin");
             }
             // -----------------------------
 
             try
             {
-                // 1. Fetch user data by email
-                var url = $"{_baseUrl}/rest/v1/users?email=eq.{email}&select=id,name,password_hash,role";
+                var url = $"{_baseUrl}/rest/v1/USER?email=eq.{email}&select=user_id,first_name,last_name,password_hash,role_id,ROLE(role_name)";
                 var resp = await _http.GetAsync(url);
                 resp.EnsureSuccessStatusCode();
 
@@ -44,15 +42,18 @@ namespace FacePass.Management.Services
                 var user = arr[0];
                 string storedHash = user["password_hash"]?.ToString() ?? "";
 
-                // 2. Verify BCrypt Hash
                 bool isPasswordCorrect = BCrypt.Net.BCrypt.Verify(password, storedHash);
 
                 if (isPasswordCorrect)
                 {
-                    return (true, 
-                            user["role"]?.ToString(), 
-                            Guid.Parse(user["id"]!.ToString()), 
-                            user["name"]?.ToString());
+                    var first = user["first_name"]?.ToString() ?? "";
+                    var last = user["last_name"]?.ToString() ?? "";
+                    var fullName = $"{first} {last}".Trim();
+
+                    return (true,
+                            JsonEmbedHelper.RoleNameFromUser(user),
+                            long.Parse(user["user_id"]!.ToString()),
+                            fullName);
                 }
 
                 return (false, null, null, null);

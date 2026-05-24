@@ -4,17 +4,13 @@ using System.Text;
 using System.Windows;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.Collections.Generic;
-using System.Linq;
+using FacePass.Management.Services;
 
 namespace FacePass.Management.Views
 {
     public partial class TimetableDialog : Window
     {
-        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
-        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
         private JObject _existingSlot;
-        private string _classId;
 
         public TimetableDialog(JObject existingSlot = null)
         {
@@ -27,23 +23,14 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                using var client = SupabaseRestClient.Create();
 
-                // Fetch Courses
-                var courseResp = await client.GetAsync($"{_baseUrl}/rest/v1/courses?select=*&order=name.asc");
+                var courseResp = await client.GetAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/COURSES?select=*&order=course_name.asc");
                 courseResp.EnsureSuccessStatusCode();
                 var courses = JArray.Parse(await courseResp.Content.ReadAsStringAsync());
+                foreach (JObject course in courses)
+                    course["name"] = course["course_name"];
                 CourseCombo.ItemsSource = courses;
-
-                // Fetch Class ID for BSSE-A
-                var classResp = await client.GetAsync($"{_baseUrl}/rest/v1/classes?name=eq.BSSE-A&select=id");
-                classResp.EnsureSuccessStatusCode();
-                var classes = JArray.Parse(await classResp.Content.ReadAsStringAsync());
-                if (classes.Count > 0)
-                {
-                    _classId = classes[0]["id"].ToString();
-                }
 
                 if (_existingSlot != null)
                 {
@@ -54,7 +41,7 @@ namespace FacePass.Management.Views
                     var courseId = _existingSlot["course_id"]?.ToString();
                     foreach (JObject item in CourseCombo.Items)
                     {
-                        if (item["id"]?.ToString() == courseId)
+                        if (item["course_id"]?.ToString() == courseId)
                         {
                             CourseCombo.SelectedItem = item;
                             break;
@@ -82,30 +69,33 @@ namespace FacePass.Management.Views
                 var course = (JObject)CourseCombo.SelectedItem;
                 var data = new
                 {
-                    class_id = _classId,
-                    course_id = course["id"].ToString(),
+                    course_id = course["course_id"].ToString(),
                     day_of_week = DayCombo.Text,
                     start_time = StartTimeBox.Text,
                     end_time = EndTimeBox.Text
                 };
 
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
-                client.DefaultRequestHeaders.Add("Prefer", "return=representation");
+                using var client = SupabaseRestClient.Create();
                 var content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");
 
                 HttpResponseMessage resp;
                 if (_existingSlot == null)
                 {
-                    resp = await client.PostAsync($"{_baseUrl}/rest/v1/timetable", content);
+                    var postReq = new HttpRequestMessage(HttpMethod.Post, $"{SupabaseRestClient.BaseUrl}/rest/v1/timetable")
+                    {
+                        Content = content
+                    };
+                    postReq.Headers.Add("Prefer", "return=representation");
+                    resp = await client.SendAsync(postReq);
                 }
                 else
                 {
                     var id = _existingSlot["id"].ToString();
-                    var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_baseUrl}/rest/v1/timetable?id=eq.{id}")
+                    var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{SupabaseRestClient.BaseUrl}/rest/v1/timetable?id=eq.{id}")
                     {
                         Content = content
                     };
+                    request.Headers.Add("Prefer", "return=representation");
                     resp = await client.SendAsync(request);
                 }
 

@@ -3,19 +3,17 @@ using System.Net.Http;
 using System.Text;
 using System.Windows;
 using Newtonsoft.Json.Linq;
-using System.Collections.Generic;
+using FacePass.Management.Services;
 
 namespace FacePass.Management.Views
 {
     public partial class StudentAssignmentDialog : Window
     {
-        private readonly string _baseUrl = "https://mfcyozrkizrbrtpfihdj.supabase.co";
-        private readonly string _anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mY3lvenJraXpyYnJ0cGZpaGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjcwNDMsImV4cCI6MjA5MjYwMzA0M30.HHuB-oJs4TYEWMZi-7Loe3-cJHjLH8nvnGkBBaliJIE";
-        private readonly Guid _userId;
+        private readonly long _userId;
         private readonly string _userName;
-        private readonly Guid _adminId;
+        private readonly long _adminId;
 
-        public StudentAssignmentDialog(Guid userId, string userName, Guid adminId)
+        public StudentAssignmentDialog(long userId, string userName, long adminId)
         {
             InitializeComponent();
             _userId = userId;
@@ -29,34 +27,33 @@ namespace FacePass.Management.Views
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("apikey", _anonKey);
-                var resp = await client.GetAsync($"{_baseUrl}/rest/v1/classes?select=*&order=name.asc");
+                using var client = SupabaseRestClient.Create();
+                var resp = await client.GetAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/COURSES?select=*&order=course_name.asc");
                 resp.EnsureSuccessStatusCode();
-                var classes = JArray.Parse(await resp.Content.ReadAsStringAsync());
-                ClassCombo.ItemsSource = classes;
-                if (classes.Count > 0) ClassCombo.SelectedIndex = 0;
+                var courses = JArray.Parse(await resp.Content.ReadAsStringAsync());
+                foreach (JObject course in courses)
+                    course["name"] = course["course_name"];
+                ClassCombo.ItemsSource = courses;
+                if (courses.Count > 0) ClassCombo.SelectedIndex = 0;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading classes: {ex.Message}");
+                MessageBox.Show($"Error loading courses: {ex.Message}");
             }
         }
 
         private async void Save_Click(object sender, RoutedEventArgs e)
         {
-            if (ClassCombo.SelectedItem is JObject selectedClass)
+            if (ClassCombo.SelectedItem is JObject selectedCourse)
             {
-                string classId = selectedClass["id"].ToString();
-                string className = selectedClass["name"].ToString();
+                string courseId = selectedCourse["course_id"]!.ToString();
+                string courseName = selectedCourse["name"]!.ToString();
 
                 try
                 {
-                    using var client = new HttpClient();
-                    client.DefaultRequestHeaders.Add("apikey", _anonKey);
+                    using var client = SupabaseRestClient.Create();
 
-                    // 1. Get Student ID
-                    var studentResp = await client.GetAsync($"{_baseUrl}/rest/v1/students?user_id=eq.{_userId}&select=id");
+                    var studentResp = await client.GetAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/STUDENTS?student_id=eq.{_userId}&select=student_id");
                     studentResp.EnsureSuccessStatusCode();
                     var students = JArray.Parse(await studentResp.Content.ReadAsStringAsync());
                     if (students.Count == 0)
@@ -64,49 +61,29 @@ namespace FacePass.Management.Views
                         MessageBox.Show("Student record not found. Make sure the user is a student.");
                         return;
                     }
-                    string studentId = students[0]["id"].ToString();
+                    string studentId = students[0]["student_id"]!.ToString();
 
-                    // 2. PATCH Student Class
-                    var patchPayload = new JObject { ["class_id"] = classId };
-                    var patchContent = new StringContent(patchPayload.ToString(), Encoding.UTF8, "application/json");
-                    var patchReq = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_baseUrl}/rest/v1/students?id=eq.{studentId}") { Content = patchContent };
-                    var patchResp = await client.SendAsync(patchReq);
-                    patchResp.EnsureSuccessStatusCode();
+                    var enrollPayload = new JObject { ["student_id"] = studentId, ["course_id"] = courseId };
+                    var enrollContent = new StringContent(enrollPayload.ToString(), Encoding.UTF8, "application/json");
 
-                    // 3. Fetch Courses for Class
-                    var courseResp = await client.GetAsync($"{_baseUrl}/rest/v1/courses?class_id=eq.{classId}&select=id");
-                    courseResp.EnsureSuccessStatusCode();
-                    var courses = JArray.Parse(await courseResp.Content.ReadAsStringAsync());
-
-                    // 4. Enroll in Courses
-                    int enrolledCount = 0;
-                    foreach (var course in courses)
+                    var request = new HttpRequestMessage(HttpMethod.Post, $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSE_ENROLLMENTS")
                     {
-                        string courseId = course["id"].ToString();
-                        var enrollPayload = new JObject { ["student_id"] = studentId, ["course_id"] = courseId };
-                        var enrollContent = new StringContent(enrollPayload.ToString(), Encoding.UTF8, "application/json");
-                        
-                        // Use Upsert logic (headers for PostgREST)
-                        var request = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/rest/v1/student_enrollments")
-                        {
-                            Content = enrollContent
-                        };
-                        request.Headers.Add("Prefer", "resolution=ignore-duplicates");
-                        
-                        var enrollResp = await client.SendAsync(request);
-                        if (enrollResp.IsSuccessStatusCode) enrolledCount++;
-                    }
+                        Content = enrollContent
+                    };
+                    request.Headers.Add("Prefer", "resolution=ignore-duplicates");
 
-                    // 5. Audit Log
+                    var enrollResp = await client.SendAsync(request);
+                    enrollResp.EnsureSuccessStatusCode();
+
                     var logPayload = new JObject
                     {
                         ["actor_id"] = _adminId,
-                        ["action"] = "ASSIGN_STUDENT_CLASS",
-                        ["metadata"] = $"Assigned student {_userName} to class {className} and enrolled in {enrolledCount} subjects."
+                        ["action"] = "ASSIGN_STUDENT_COURSE",
+                        ["metadata"] = $"Enrolled student {_userName} in course {courseName}."
                     };
-                    await client.PostAsync($"{_baseUrl}/rest/v1/audit_logs", new StringContent(logPayload.ToString(), Encoding.UTF8, "application/json"));
+                    await client.PostAsync($"{SupabaseRestClient.BaseUrl}/rest/v1/audit_logs", new StringContent(logPayload.ToString(), Encoding.UTF8, "application/json"));
 
-                    MessageBox.Show($"Student assigned to {className} and enrolled in {enrolledCount} subjects.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show($"Student enrolled in {courseName}.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     this.DialogResult = true;
                     this.Close();
                 }

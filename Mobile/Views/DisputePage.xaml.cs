@@ -24,7 +24,7 @@ namespace FacePass.Mobile.Views
 
             try
             {
-                if (Guid.TryParse(AttendanceId, out Guid id))
+                if (long.TryParse(AttendanceId, out long id))
                 {
                     await _supabase.SubmitDispute(id, DisputeReasonEditor.Text);
                     await DisplayAlert("Success", "Your dispute has been submitted for review.", "OK");
