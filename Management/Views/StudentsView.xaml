@@ -20,7 +20,10 @@
                 <TextBlock Text="Students Roster" FontSize="26" FontWeight="Bold" Foreground="White"/>
                 <TextBlock Text="Manage registered student profiles, view facial encodings state and enrollment history" FontSize="14" Foreground="#88FFFFFF" Margin="0,5,0,0"/>
             </StackPanel>
-            <Button Content="Refresh" Width="80" Height="30" Margin="auto,0,0,0" HorizontalAlignment="Right" Click="RefreshButton_Click"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,0,0,0">
+                <Button x:Name="RegisterBiometricBtn" Content="Register Biometric" Width="120" Height="30" Margin="0,0,10,0" IsEnabled="False" Background="#FF5252" Click="RegisterBiometric_Click"/>
+                <Button Content="Refresh" Width="80" Height="30" Click="RefreshButton_Click"/>
+            </StackPanel>
         </StackPanel>
 
         <!-- Placeholder layout with pre-populated DataGrid -->

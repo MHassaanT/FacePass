@@ -129,5 +129,23 @@ namespace FacePass.Kiosk.Services
             };
             return await _supa.PostAsync("/rest/v1/qr_sessions", payload);
         }
+
+        /// <summary>
+        /// Updates the classroom with GPS coordinates.
+        /// </summary>
+        public async Task UpdateClassroomLocationAsync(long classroomId, double latitude, double longitude)
+        {
+            // TODO: Run migration in Supabase SQL Editor:
+            // ALTER TABLE "CLASSROOMS" ADD COLUMN IF NOT EXISTS latitude double precision;
+            // ALTER TABLE "CLASSROOMS" ADD COLUMN IF NOT EXISTS longitude double precision;
+            
+            var payload = new JObject
+            {
+                ["latitude"] = latitude,
+                ["longitude"] = longitude
+            };
+
+            await _supa.PatchAsync($"/rest/v1/CLASSROOMS?classroom_id=eq.{classroomId}", payload);
+        }
     }
 }

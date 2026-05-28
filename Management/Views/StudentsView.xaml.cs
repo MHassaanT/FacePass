@@ -14,116 +14,228 @@ namespace FacePass.Management.Views
     {
         private readonly long _teacherId;
 
-        public event Action<long, bool> StudentSelected;
+        public event Action<long, bool>? StudentSelected;
 
         public StudentsView(long teacherId)
         {
             InitializeComponent();
             _teacherId = teacherId;
-            LoadStudentsAsync();
+            // Run after layout is complete to avoid dispatcher crashes on first load
+            Dispatcher.BeginInvoke(new Action(async () => await LoadStudentsAsync()));
         }
 
-        private async void LoadStudentsAsync()
+        private async Task LoadStudentsAsync()
         {
             try
             {
+                StudentsGrid.ItemsSource = null;
                 using var client = SupabaseRestClient.Create();
 
-                var courseUrl = $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSES?teacher_id=eq.{_teacherId}&select=course_id";
-                var courseResp = await client.GetAsync(courseUrl);
-                courseResp.EnsureSuccessStatusCode();
-                var courseArray = JArray.Parse(await courseResp.Content.ReadAsStringAsync());
-
-                if (courseArray.Count == 0)
+                // ── Step 1: courses for this teacher ────────────────────────
+                List<string> courseIds;
+                try
                 {
-                    MessageBox.Show("No courses assigned to this teacher.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                    var courseResp = await client.GetAsync(
+                        $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSES" +
+                        $"?teacher_id=eq.{_teacherId}&select=course_id");
+                    courseResp.EnsureSuccessStatusCode();
+
+                    var courseArray = JArray.Parse(await courseResp.Content.ReadAsStringAsync());
+                    courseIds = courseArray
+                        .Select(c => c["course_id"]?.ToString())
+                        .Where(id => !string.IsNullOrEmpty(id))
+                        .ToList()!;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"[Step 1 - Courses] {ex.Message}");
+                    return;
+                }
+
+                if (courseIds.Count == 0)
+                {
                     StudentsGrid.ItemsSource = null;
                     return;
                 }
 
-                var courseIds = courseArray
-                    .Select(c => c["course_id"]!.ToString())
-                    .Where(id => !string.IsNullOrEmpty(id));
                 var courseIdList = string.Join(",", courseIds);
 
-                var enrollUrl =
-                    $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSE_ENROLLMENTS?course_id=in.({courseIdList})" +
-                    "&select=student_id,STUDENTS(status,enrollment_date,USER(first_name,last_name,email,created_at))";
-                var enrollResp = await client.GetAsync(enrollUrl);
-                enrollResp.EnsureSuccessStatusCode();
-                var enrollArray = JArray.Parse(await enrollResp.Content.ReadAsStringAsync());
+                // ── Step 2: enrollments ──────────────────────────────────────
+                List<string> studentIds;
+                try
+                {
+                    var enrollResp = await client.GetAsync(
+                        $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSE_ENROLLMENTS" +
+                        $"?course_id=in.({courseIdList})&select=student_id");
+                    enrollResp.EnsureSuccessStatusCode();
 
-                if (enrollArray.Count == 0)
+                    var enrollArray = JArray.Parse(await enrollResp.Content.ReadAsStringAsync());
+                    studentIds = enrollArray
+                        .Select(e => e["student_id"]?.ToString())
+                        .Where(id => !string.IsNullOrEmpty(id))
+                        .Distinct()
+                        .ToList()!;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"[Step 2 - Enrollments] {ex.Message}");
+                    return;
+                }
+
+                if (studentIds.Count == 0)
                 {
                     StudentsGrid.ItemsSource = null;
                     return;
                 }
 
-                var studentIds = enrollArray
-                    .Select(e => e["student_id"]!.ToString())
-                    .Distinct()
-                    .ToList();
+                var studentIdList = string.Join(",", studentIds);
 
-                var faceEnrolledIds = new HashSet<string>();
-                if (studentIds.Count > 0)
+                // ── Step 3: USER rows ────────────────────────────────────────
+                Dictionary<string, JObject> userMap;
+                try
                 {
-                    var faceUrl =
-                        $"{SupabaseRestClient.BaseUrl}/rest/v1/FACE_ENCODINGS?student_id=in.({string.Join(",", studentIds)})&select=student_id";
-                    var faceResp = await client.GetAsync(faceUrl);
+                    var userResp = await client.GetAsync(
+                        $"{SupabaseRestClient.BaseUrl}/rest/v1/USER" +
+                        $"?user_id=in.({studentIdList})" +
+                        $"&select=user_id,first_name,last_name,email,created_at");
+                    userResp.EnsureSuccessStatusCode();
+
+                    var userArray = JArray.Parse(await userResp.Content.ReadAsStringAsync());
+                    userMap = userArray
+                        .OfType<JObject>()
+                        .ToDictionary(u => u["user_id"]!.ToString());
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"[Step 3 - Users] {ex.Message}");
+                    return;
+                }
+
+                // ── Step 4: face encodings ───────────────────────────────────
+                var faceEnrolledIds = new HashSet<string>();
+                try
+                {
+                    var faceResp = await client.GetAsync(
+                        $"{SupabaseRestClient.BaseUrl}/rest/v1/FACE_ENCODINGS" +
+                        $"?student_id=in.({studentIdList})&select=student_id");
                     faceResp.EnsureSuccessStatusCode();
+
                     var faceArray = JArray.Parse(await faceResp.Content.ReadAsStringAsync());
                     foreach (var row in faceArray)
                         faceEnrolledIds.Add(row["student_id"]!.ToString());
                 }
-
-                var seenStudents = new HashSet<string>();
-                var studentList = new List<object>();
-
-                foreach (JObject enrollment in enrollArray)
+                catch (Exception ex)
                 {
-                    var studentIdStr = enrollment["student_id"]!.ToString();
-                    if (!seenStudents.Add(studentIdStr)) continue;
-
-                    var name = JsonEmbedHelper.FullName(enrollment, "STUDENTS", "USER");
-                    var email = JsonEmbedHelper.GetNestedField(enrollment, "STUDENTS", "USER", "email");
-                    if (string.IsNullOrEmpty(email)) email = "Unknown";
-
-                    var createdAtStr = JsonEmbedHelper.GetNestedField(enrollment, "STUDENTS", "USER", "created_at");
-                    DateTime? createdAt = DateTime.TryParse(createdAtStr, out var dt) ? dt : null;
-                    var dateCreated = createdAt?.ToString("dd MMM yyyy") ?? "";
-                    bool enrolled = faceEnrolledIds.Contains(studentIdStr);
-                    var sid = long.Parse(studentIdStr);
-
-                    studentList.Add(new
-                    {
-                        Id = sid,
-                        Name = name,
-                        Email = email,
-                        DateCreated = dateCreated,
-                        BiometricEnrolled = enrolled
-                    });
+                    // Non-fatal: show empty biometric status if this fails
+                    System.Diagnostics.Debug.WriteLine($"[Step 4 - FaceEncodings] {ex.Message}");
                 }
 
-                StudentsGrid.ItemsSource = studentList;
+                // ── Step 5: build list ───────────────────────────────────────
+                var studentList = new List<object>();
+                try
+                {
+                    foreach (var sid in studentIds)
+                    {
+                        if (!userMap.TryGetValue(sid, out var user)) continue;
+
+                        var first = user["first_name"]?.ToString() ?? "";
+                        var last  = user["last_name"]?.ToString()  ?? "";
+                        var name  = $"{first} {last}".Trim();
+                        if (string.IsNullOrEmpty(name)) name = "Unknown";
+
+                        var email       = user["email"]?.ToString() ?? "Unknown";
+                        var createdStr  = user["created_at"]?.ToString() ?? "";
+                        var dateCreated = DateTime.TryParse(createdStr, out var dt)
+                            ? dt.ToString("dd MMM yyyy") : "";
+                        bool enrolled   = faceEnrolledIds.Contains(sid);
+
+                        studentList.Add(new
+                        {
+                            Id                = long.Parse(sid),
+                            Name              = name,
+                            Email             = email,
+                            DateCreated       = dateCreated,
+                            BiometricEnrolled = enrolled
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"[Step 5 - BuildList] {ex.Message}");
+                    return;
+                }
+
+                // ── Step 6: bind to DataGrid ─────────────────────────────────
+                try
+                {
+                    StudentsGrid.ItemsSource = studentList;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"[Step 6 - DataGrid Bind] {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading students: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"[StudentsView - Unhandled]\n{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}",
+                    "Crash Diagnostic", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            LoadStudentsAsync();
+            Dispatcher.BeginInvoke(new Action(async () => await LoadStudentsAsync()));
         }
 
         private void StudentsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (StudentsGrid.SelectedItem == null)
+            {
+                RegisterBiometricBtn.IsEnabled = false;
+                RegisterBiometricBtn.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FF5252"));
+                return;
+            }
+            try
+            {
+                dynamic dyn   = StudentsGrid.SelectedItem;
+                long id       = dyn.Id;
+                bool enrolled = dyn.BiometricEnrolled;
+                StudentSelected?.Invoke(id, enrolled);
+
+                if (!enrolled)
+                {
+                    RegisterBiometricBtn.IsEnabled = true;
+                    RegisterBiometricBtn.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#00E676"));
+                }
+                else
+                {
+                    RegisterBiometricBtn.IsEnabled = false;
+                    RegisterBiometricBtn.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FF5252"));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[StudentsView SelectionChanged] {ex.Message}");
+            }
+        }
+
+        private void RegisterBiometric_Click(object sender, RoutedEventArgs e)
+        {
             if (StudentsGrid.SelectedItem == null) return;
             dynamic dyn = StudentsGrid.SelectedItem;
             long id = dyn.Id;
-            bool enrolled = dyn.BiometricEnrolled;
-            StudentSelected?.Invoke(id, enrolled);
+            string name = dyn.Name;
+
+            var dialog = new BiometricRegistrationDialog(id, name)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                Dispatcher.BeginInvoke(new Action(async () => await LoadStudentsAsync()));
+            }
         }
     }
 }

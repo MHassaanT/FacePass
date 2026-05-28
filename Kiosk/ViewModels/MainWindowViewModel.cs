@@ -24,6 +24,7 @@ namespace FacePass.Kiosk.ViewModels
         private readonly LivenessChallengeService _liveness;
         private readonly QrSessionService _qrService;
         private readonly AttendanceService _attendance;
+        private readonly LocationService _location;
         private readonly Dispatcher _ui;
 
         // ── Config ────────────────────────────────────────────────────────────
@@ -126,6 +127,7 @@ namespace FacePass.Kiosk.ViewModels
             LivenessChallengeService liveness,
             QrSessionService qrService,
             AttendanceService attendance,
+            LocationService location,
             long classroomId,
             long courseId)
         {
@@ -136,6 +138,7 @@ namespace FacePass.Kiosk.ViewModels
             _liveness = liveness;
             _qrService = qrService;
             _attendance = attendance;
+            _location = location;
             _classroomId = classroomId;
             _courseId = courseId;
             _ui = Dispatcher.CurrentDispatcher;
@@ -151,6 +154,7 @@ namespace FacePass.Kiosk.ViewModels
             qrTimer.Start();
 
             _ = RefreshQrAsync();
+            _ = SyncClassroomLocationAsync();
 
             if (!_camera.IsOpened)
             {
@@ -162,6 +166,32 @@ namespace FacePass.Kiosk.ViewModels
                 StatusMessage = "System Ready — Please look at the camera";
                 // Hide status after 5 seconds if everything is fine
                 _ = Task.Delay(5000).ContinueWith(_ => _ui.Invoke(() => IsStatusVisible = false));
+            }
+        }
+
+        private async Task SyncClassroomLocationAsync()
+        {
+            try
+            {
+                var loc = await _location.GetCurrentLocationAsync();
+                if (loc.HasValue)
+                {
+                    await _faceRepo.UpdateClassroomLocationAsync(_classroomId, loc.Value.latitude, loc.Value.longitude);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[Location] GPS unavailable or timed out.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Location] Failed to sync: {ex.Message}");
+                _ui.Invoke(() =>
+                {
+                    StatusMessage = $"⚠️ Location Sync Error: {ex.Message}";
+                    IsStatusVisible = true;
+                    _ = Task.Delay(3000).ContinueWith(_ => _ui.Invoke(() => IsStatusVisible = false));
+                });
             }
         }
 
@@ -303,8 +333,9 @@ namespace FacePass.Kiosk.ViewModels
 
                 if (match == null)
                 {
-                    // No match — reset so the next frame can try again
-                    _isRecognizing = false;
+                    _ui.Invoke(() => ShowBanner("❌ Unrecognized Face"));
+                    // Delay before resetting to avoid spamming
+                    _ = Task.Delay(2000).ContinueWith(_ => _isRecognizing = false);
                     frame.Dispose();
                     return;
                 }

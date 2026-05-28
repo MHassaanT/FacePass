@@ -37,14 +37,15 @@ namespace FacePass.Management.Views
                     if (string.IsNullOrEmpty(entry["course_name"]?.ToString()))
                         entry["course_name"] = "Unknown";
                     entry["start_time_formatted"] = FormatTime(entry["start_time"]?.ToString());
-                    entry["end_time_formatted"] = FormatTime(entry["end_time"]?.ToString());
+                    entry["end_time_formatted"]   = FormatTime(entry["end_time"]?.ToString());
                 }
 
                 TimetableGrid.ItemsSource = entries;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading timetable: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error loading timetable: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

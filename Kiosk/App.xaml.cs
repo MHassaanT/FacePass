@@ -58,10 +58,11 @@ namespace FacePass.Kiosk
                 var liveness        = new LivenessChallengeService(eyeXml);
                 var qrService       = new QrSessionService(faceRepo, classroomId);
                 var attendance      = new AttendanceService(faceRepo);
+                var location        = new LocationService();
 
                 var vm = new MainWindowViewModel(
                     camera, detector, encoder, faceRepo,
-                    liveness, qrService, attendance,
+                    liveness, qrService, attendance, location,
                     classroomId, courseId);
 
                 var window = new MainWindow(vm);
