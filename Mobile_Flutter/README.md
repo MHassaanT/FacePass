@@ -1,17 +1,25 @@
-# facepass_mobile
+# FacePass Mobile
 
-A new Flutter project.
+Flutter client for the FacePass attendance system.
 
-## Getting Started
+## Run
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+The app uses the bundled Supabase defaults in `lib/config/supabase_config.dart`.
+You can override them at build time:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter run --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=your-anon-key
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Notes
+
+- Student and teacher identity resolution now uses the app's `USER` table instead of guessing from auth IDs.
+- Passwords are no longer trimmed before login.
+- The QR scanner and dashboard now resolve the current student consistently through the shared identity helper.
+- Mobile login now verifies the stored bcrypt hash directly from the `USER` table, so no custom login RPC is required.

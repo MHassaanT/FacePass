@@ -15,6 +15,7 @@ namespace FacePass.Management.Views
         private JArray _departments = new();
         private JArray _courses = new();
         private bool _loadingLookups;
+        private bool _isInitializing = true;
 
         private static async Task<long> ResolveRoleIdAsync(HttpClient client, string roleName)
         {
@@ -131,6 +132,12 @@ namespace FacePass.Management.Views
             _existingUser = existingUser;
             InitializeComponent();
 
+            DepartmentPanel.Visibility = Visibility.Collapsed;
+            CoursePanel.Visibility = Visibility.Collapsed;
+
+            if (RoleCombo.Items.Count > 0)
+                RoleCombo.SelectedIndex = 0;
+
             if (_existingUser != null)
             {
                 Title = "Edit User";
@@ -205,6 +212,7 @@ namespace FacePass.Management.Views
                 if (DepartmentCombo.Items.Count > 0 && DepartmentCombo.SelectedItem == null)
                     DepartmentCombo.SelectedIndex = 0;
 
+                _isInitializing = false;
                 ApplyRoleVisibility();
                 FilterCoursesForSelectedDepartment();
             }
@@ -220,6 +228,9 @@ namespace FacePass.Management.Views
 
         private void ApplyRoleVisibility()
         {
+            if (_isInitializing)
+                return;
+
             var role = SelectedRole(RoleCombo);
             DepartmentPanel.Visibility = role == "admin" ? Visibility.Collapsed : Visibility.Visible;
             CoursePanel.Visibility = role == "student" ? Visibility.Visible : Visibility.Collapsed;
@@ -230,6 +241,9 @@ namespace FacePass.Management.Views
 
         private void FilterCoursesForSelectedDepartment()
         {
+            if (_isInitializing)
+                return;
+
             if (SelectedRole(RoleCombo) != "student")
             {
                 CourseCombo.ItemsSource = null;
@@ -263,7 +277,7 @@ namespace FacePass.Management.Views
 
         private void RoleCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_loadingLookups)
+            if (_loadingLookups || _isInitializing)
                 return;
 
             ApplyRoleVisibility();
@@ -272,7 +286,7 @@ namespace FacePass.Management.Views
 
         private void DepartmentCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_loadingLookups)
+            if (_loadingLookups || _isInitializing)
                 return;
 
             FilterCoursesForSelectedDepartment();

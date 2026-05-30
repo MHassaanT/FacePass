@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/supabase_service.dart';
 import 'dashboard_page.dart';
@@ -25,7 +24,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -67,18 +66,17 @@ class _LoginPageState extends State<LoginPage> {
               Text(
                 'FacePass',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
+                style: const TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF00E676),
-                  letterSpacing: -1.5,
+                  color: Color(0xFF00E676),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Secure Biometric Attendance',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
+                style: const TextStyle(
                   fontSize: 16,
                   color: Colors.white54,
                 ),
@@ -111,7 +109,7 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: () {},
                   child: Text(
                     'Forgot Password?',
-                    style: GoogleFonts.outfit(color: const Color(0xFF00E676)),
+                    style: const TextStyle(color: Color(0xFF00E676)),
                   ),
                 ),
               ),
@@ -139,10 +137,9 @@ class _LoginPageState extends State<LoginPage> {
                       )
                     : Text(
                         'LOGIN',
-                        style: GoogleFonts.outfit(
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
                         ),
                       ),
               ),
@@ -158,8 +155,8 @@ class _LoginPageState extends State<LoginPage> {
                     onTap: () {},
                     child: Text(
                       'Sign Up',
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFF00E676),
+                      style: const TextStyle(
+                        color: Color(0xFF00E676),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -187,7 +184,7 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         Text(
           label,
-          style: GoogleFonts.outfit(
+          style: const TextStyle(
             color: Colors.white70,
             fontSize: 14,
             fontWeight: FontWeight.w500,

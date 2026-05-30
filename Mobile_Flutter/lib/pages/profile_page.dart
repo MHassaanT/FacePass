@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/supabase_service.dart';
@@ -29,8 +28,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('My Profile',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        title: const Text('My Profile',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -53,7 +52,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 20),
                   Text(
                     profile['full_name'] ?? 'N/A',
-                    style: GoogleFonts.outfit(
+                    style: const TextStyle(
                         fontSize: 28, fontWeight: FontWeight.bold),
                   ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
                   const SizedBox(height: 4),
@@ -110,7 +109,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: Text(
                       'Logout',
-                      style: GoogleFonts.outfit(
+                      style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ).animate().fadeIn(delay: 600.ms),

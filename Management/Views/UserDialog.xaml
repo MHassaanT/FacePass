@@ -47,7 +47,7 @@
 
                 <TextBlock Text="Role" Foreground="#88FFFFFF" Margin="0,15,0,5"/>
                 <ComboBox x:Name="RoleCombo" Height="35" SelectionChanged="RoleCombo_SelectionChanged">
-                    <ComboBoxItem Content="student" IsSelected="True"/>
+                    <ComboBoxItem Content="student"/>
                     <ComboBoxItem Content="teacher"/>
                     <ComboBoxItem Content="admin"/>
                 </ComboBox>

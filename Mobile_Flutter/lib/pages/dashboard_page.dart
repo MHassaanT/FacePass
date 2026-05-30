@@ -1,7 +1,6 @@
 import 'package:facepass_mobile/services/gps_tracking_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/subject_attendance.dart';
 import '../services/supabase_service.dart';
@@ -10,6 +9,7 @@ import 'scanner_page.dart';
 import 'profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'report_page.dart';
+import '../services/user_identity.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -24,16 +24,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final authUser = Supabase.instance.client.auth.currentUser;
-      if (authUser == null) return;
-
-      final userRow = await Supabase.instance.client
-          .from('USER')
-          .select('user_id')
-          .eq('email', authUser.email ?? '')
-          .maybeSingle();
-
-      final studentId = userRow?['user_id']?.toString();
+      final studentId = await AppUserIdentity.resolveCurrentStudentId();
       if (studentId == null) return;
 
       context.read<SupabaseService>().loadDashboardData(studentId);
@@ -78,7 +69,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   const SizedBox(height: 30),
                   Text(
                     'Attendance by Subject',
-                    style: GoogleFonts.outfit(
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -89,7 +80,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   const SizedBox(height: 30),
                   Text(
                     'Recent Activity',
-                    style: GoogleFonts.outfit(
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -125,7 +116,7 @@ class _DashboardPageState extends State<DashboardPage> {
       flexibleSpace: FlexibleSpaceBar(
         title: Text(
           'FacePass',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: false,
         titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
@@ -185,7 +176,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 children: [
                   Text(
                     'Overall Attendance',
-                    style: GoogleFonts.outfit(
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 16,
                     ),
@@ -193,7 +184,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   const SizedBox(height: 4),
                   Text(
                     '${percentage.toStringAsFixed(0)}%',
-                    style: GoogleFonts.outfit(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 42,
                       fontWeight: FontWeight.bold,
@@ -243,7 +234,7 @@ class _DashboardPageState extends State<DashboardPage> {
       children: [
         Text(
           value,
-          style: GoogleFonts.outfit(
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -251,7 +242,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         Text(
           label,
-          style: GoogleFonts.outfit(
+          style: const TextStyle(
             color: Colors.white60,
             fontSize: 12,
           ),
@@ -288,7 +279,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   Expanded(
                     child: Text(
                       subject.courseName,
-                      style: GoogleFonts.outfit(
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         color: Colors.white,
@@ -297,7 +288,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   Text(
                     '${subject.percentage.toStringAsFixed(0)}%',
-                    style: GoogleFonts.outfit(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                       color: color,
@@ -318,10 +309,10 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(height: 8),
               Text(
                 '${subject.present} / ${subject.total} sessions',
-                style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  color: Colors.white38,
-                ),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.white38,
+                  ),
               ),
             ],
           ),
@@ -383,7 +374,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       JsonEmbed.field(item, 'COURSES', 'course_name').isEmpty
                           ? 'Unknown Course'
                           : JsonEmbed.field(item, 'COURSES', 'course_name'),
-                      style: GoogleFonts.outfit(
+                      style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     Text(
@@ -396,7 +387,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               Text(
                 status.toUpperCase(),
-                style: GoogleFonts.outfit(
+                style: TextStyle(
                   color: _getStatusColor(status),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,

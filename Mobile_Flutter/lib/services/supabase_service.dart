@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:bcrypt/bcrypt.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subject_attendance.dart';
 import '../utils/json_embed.dart';
+import 'user_identity.dart';
 
 class SupabaseService with ChangeNotifier {
   final _supabase = Supabase.instance.client;
@@ -30,26 +32,7 @@ class SupabaseService with ChangeNotifier {
   };
 
   Future<String?> _resolveStudentId() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return null;
-
-    final userRow = await _supabase
-        .from('USER')
-        .select('user_id')
-        .eq('email', user.email ?? '')
-        .maybeSingle();
-
-    if (userRow != null) {
-      return userRow['user_id'].toString();
-    }
-
-    final studentRow = await _supabase
-        .from('STUDENTS')
-        .select('student_id')
-        .eq('student_id', user.id)
-        .maybeSingle();
-
-    return studentRow?['student_id']?.toString();
+    return AppUserIdentity.resolveCurrentStudentId();
   }
 
   Future<void> loadDashboardData(String studentId) async {
@@ -156,18 +139,52 @@ class SupabaseService with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
+      final userRow = await _supabase
+          .from('USER')
+          .select('user_id, first_name, last_name, email, password_hash, role_id')
+          .eq('email', email.trim())
+          .maybeSingle();
+
+      if (userRow == null) {
+        return 'Invalid credentials';
+      }
+
+      final storedHash = userRow['password_hash']?.toString() ?? '';
+      if (storedHash.isEmpty || !BCrypt.checkpw(password, storedHash)) {
+        return 'Invalid credentials';
+      }
+
+      final userId = userRow['user_id']?.toString();
+      if (userId == null || userId.isEmpty) {
+        return 'Invalid credentials';
+      }
+
+      String? roleName;
+      final roleId = userRow['role_id'];
+      if (roleId != null) {
+        final parsedRoleId = int.tryParse(roleId.toString());
+        final roleRow = await _supabase
+            .from('ROLE')
+            .select('role_name')
+            .eq('role_id', parsedRoleId ?? roleId)
+            .maybeSingle();
+        roleName = roleRow?['role_name']?.toString();
+      }
+
+      final studentId = await _resolveStudentIdFromUserId(userId);
+
+      AppUserIdentity.setSession(
+        userId: userId,
+        studentId: studentId,
+        email: userRow['email']?.toString(),
+        fullName:
+            '${userRow['first_name'] ?? ''} ${userRow['last_name'] ?? ''}'.trim(),
+        roleName: roleName,
       );
 
-      if (response.user != null) {
-        return null;
-      }
-      return 'Login failed';
-    } on AuthException catch (e) {
-      return e.message;
+      return null;
     } catch (e) {
+      debugPrint('[Auth] Login error: $e');
       return 'An unexpected error occurred';
     } finally {
       _isLoading = false;
@@ -211,8 +228,18 @@ class SupabaseService with ChangeNotifier {
     }
   }
 
+  Future<String?> _resolveStudentIdFromUserId(String userId) async {
+    final parsedUserId = int.tryParse(userId);
+    final studentRow = await _supabase
+        .from('STUDENTS')
+        .select('student_id')
+        .eq('student_id', parsedUserId ?? userId)
+        .maybeSingle();
+    return studentRow?['student_id']?.toString();
+  }
+
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
+    AppUserIdentity.clearSession();
     _studentProfile = null;
     _studentStats = null;
     _subjects = [];

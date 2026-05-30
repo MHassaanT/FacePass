@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:geolocator/geolocator.dart';
-
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/user_identity.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -16,7 +16,7 @@ class ScannerPage extends StatefulWidget {
 
 class _ScannerPageState extends State<ScannerPage> {
   bool _isProcessing = false;
-  String _status = 'Align QR Code within the frame';
+  String _status = 'Align QR code within the frame';
   Color _statusColor = Colors.white70;
 
   @override
@@ -27,8 +27,7 @@ class _ScannerPageState extends State<ScannerPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon:
-              const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -85,8 +84,7 @@ class _ScannerPageState extends State<ScannerPage> {
             width: 260,
             height: 260,
             decoration: BoxDecoration(
-              border:
-                  Border.all(color: Theme.of(context).primaryColor, width: 2),
+              border: Border.all(color: Theme.of(context).primaryColor, width: 2),
               borderRadius: BorderRadius.circular(35),
             ),
           ),
@@ -119,7 +117,7 @@ class _ScannerPageState extends State<ScannerPage> {
             Text(
               _status,
               textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(
+              style: TextStyle(
                 color: _statusColor,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -145,7 +143,7 @@ class _ScannerPageState extends State<ScannerPage> {
       } catch (_) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ Invalid QR Code format.';
+          _status = 'Invalid QR code format.';
           _statusColor = Colors.redAccent;
         });
         Future.delayed(const Duration(seconds: 3), () {
@@ -160,7 +158,7 @@ class _ScannerPageState extends State<ScannerPage> {
       if (sessionGuid == null || classroomIdStr == null) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ Invalid QR Code format.';
+          _status = 'Invalid QR code format.';
           _statusColor = Colors.redAccent;
         });
         return;
@@ -179,7 +177,7 @@ class _ScannerPageState extends State<ScannerPage> {
       if (sessionResp == null) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ QR code not found.\nAsk your teacher for a new code.';
+          _status = 'QR code not found.\nAsk your teacher for a new code.';
           _statusColor = Colors.redAccent;
         });
         return;
@@ -189,7 +187,7 @@ class _ScannerPageState extends State<ScannerPage> {
       if (DateTime.now().toUtc().isAfter(expiresAt)) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ QR code has expired.\nAsk your teacher for a new code.';
+          _status = 'QR code has expired.\nAsk your teacher for a new code.';
           _statusColor = Colors.redAccent;
         });
         return;
@@ -205,7 +203,7 @@ class _ScannerPageState extends State<ScannerPage> {
       if (classroomResp == null) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ Classroom not found.';
+          _status = 'Classroom not found.';
           _statusColor = Colors.redAccent;
         });
         return;
@@ -218,7 +216,7 @@ class _ScannerPageState extends State<ScannerPage> {
       if (!inRange) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ Out of Range\nYou must be in the classroom.';
+          _status = 'Out of range.\nYou must be in the classroom.';
           _statusColor = Colors.redAccent;
         });
         Future.delayed(const Duration(seconds: 3), () {
@@ -228,29 +226,12 @@ class _ScannerPageState extends State<ScannerPage> {
       }
 
       setState(() => _status = 'Marking attendance...');
-      final authUser = Supabase.instance.client.auth.currentUser!;
-
-      final userRow = await Supabase.instance.client
-          .from('USER')
-          .select('user_id')
-          .eq('email', authUser.email ?? '')
-          .maybeSingle();
-
-      String? studentId = userRow?['user_id']?.toString();
-
-      if (studentId == null) {
-        final studentResp = await Supabase.instance.client
-            .from('STUDENTS')
-            .select('student_id')
-            .eq('student_id', authUser.id)
-            .maybeSingle();
-        studentId = studentResp?['student_id']?.toString();
-      }
+      final studentId = await AppUserIdentity.resolveCurrentStudentId();
 
       if (studentId == null) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ Student record not found.';
+          _status = 'Student record not found.';
           _statusColor = Colors.redAccent;
         });
         return;
@@ -262,14 +243,12 @@ class _ScannerPageState extends State<ScannerPage> {
           .eq('student_id', studentId)
           .limit(1);
 
-      final courseId = enrollments.isNotEmpty
-          ? enrollments.first['course_id']
-          : null;
+      final courseId = enrollments.isNotEmpty ? enrollments.first['course_id'] : null;
 
       if (courseId == null) {
         setState(() {
           _isProcessing = false;
-          _status = '❌ No course enrollment found.';
+          _status = 'No course enrollment found.';
           _statusColor = Colors.redAccent;
         });
         return;
@@ -285,7 +264,7 @@ class _ScannerPageState extends State<ScannerPage> {
       });
 
       setState(() {
-        _status = '✅ Attendance Marked!';
+        _status = 'Attendance marked!';
         _statusColor = const Color(0xFF00E676);
         _isProcessing = false;
       });
@@ -295,7 +274,7 @@ class _ScannerPageState extends State<ScannerPage> {
     } catch (e) {
       debugPrint('Error: $e');
       setState(() {
-        _status = 'Error: $e';
+        _status = 'Unable to mark attendance right now.';
         _statusColor = Colors.red;
         _isProcessing = false;
       });
@@ -305,8 +284,7 @@ class _ScannerPageState extends State<ScannerPage> {
     }
   }
 
-  Future<bool> _checkGeofenceWithCoords(
-      double targetLat, double targetLng) async {
+  Future<bool> _checkGeofenceWithCoords(double targetLat, double targetLng) async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -315,8 +293,12 @@ class _ScannerPageState extends State<ScannerPage> {
     if (permission == LocationPermission.always ||
         permission == LocationPermission.whileInUse) {
       Position pos = await Geolocator.getCurrentPosition();
-      double dist = Geolocator.distanceBetween(
-          pos.latitude, pos.longitude, targetLat, targetLng);
+      final dist = Geolocator.distanceBetween(
+        pos.latitude,
+        pos.longitude,
+        targetLat,
+        targetLng,
+      );
       return dist <= 20;
     }
     return false;

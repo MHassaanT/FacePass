@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config/supabase_config.dart';
 import 'pages/login_page.dart';
 import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase with placeholders (User must update)
   await Supabase.initialize(
-    url: 'https://mfcyozrkizrbtrpfihdj.supabase.co',
-    anonKey: 'sb_publishable_8-UJfZOL6kRNRIg68y9q8w_hllwPMPZ',
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
   );
   runApp(
     MultiProvider(
@@ -41,7 +40,7 @@ class FacePassApp extends StatelessWidget {
           secondary: Color(0xFF1565C0),
           surface: Color(0xFF1A1A1A),
         ),
-        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+        textTheme: ThemeData.dark().textTheme,
         useMaterial3: true,
       ),
       home: const LoginPage(),
