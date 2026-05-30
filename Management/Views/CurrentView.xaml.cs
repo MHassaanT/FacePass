@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
@@ -40,7 +41,7 @@ namespace FacePass.Management.Views
             RefreshData();
 
             _refreshTimer = new DispatcherTimer();
-            _refreshTimer.Interval = TimeSpan.FromSeconds(30);
+            _refreshTimer.Interval = TimeSpan.FromSeconds(10);
             _refreshTimer.Tick += Timer_Tick;
             _refreshTimer.Start();
         }
@@ -81,8 +82,14 @@ namespace FacePass.Management.Views
             await FetchActiveLectureAndAttendance();
 
             Dispatcher.Invoke(() => {
-                LastUpdatedText.Text = $"Last updated: {DateTime.Now.ToString("hh:mm:ss tt")}";
+                LastUpdatedText.Text = $"Last updated: {DateTime.Now:hh:mm:ss tt}";
             });
+        }
+
+        // Called by the Refresh button in XAML
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshData();
         }
 
         private async Task FetchActiveLectureAndAttendance()
@@ -99,7 +106,9 @@ namespace FacePass.Management.Views
                 var slots = JArray.Parse(json);
 
                 JObject? activeSlot = null;
-                string currentDay = DateTime.Now.ToString("dddd");
+                // Use InvariantCulture so the day name is always English (e.g. "Friday")
+                // matching the values stored in the DB (e.g. "Monday", "Tuesday", ...).
+                string currentDay = DateTime.Now.ToString("dddd", CultureInfo.InvariantCulture);
                 TimeSpan currentTime = DateTime.Now.TimeOfDay;
 
                 foreach (JObject slot in slots)
@@ -164,8 +173,14 @@ namespace FacePass.Management.Views
             {
                 using var client = SupabaseRestClient.Create();
 
-                var todayStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
-                var url = $"{SupabaseRestClient.BaseUrl}/rest/v1/attendance_logs?course_id=eq.{courseId}&timestamp=gte.{todayStr}&select=*,STUDENTS(USER(first_name,last_name))&order=timestamp.desc";
+                // Use local date so records from midnight local time are included,
+                // regardless of the server's UTC offset.
+                var todayStr = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                var url = $"{SupabaseRestClient.BaseUrl}/rest/v1/attendance_logs" +
+                          $"?select=*,STUDENTS(USER(first_name,last_name))" +
+                          $"&course_id=eq.{courseId}" +
+                          $"&timestamp=gte.{todayStr}" +
+                          $"&order=timestamp.desc";
                 var resp = await client.GetAsync(url);
                 resp.EnsureSuccessStatusCode();
 

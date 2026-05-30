@@ -270,6 +270,7 @@ namespace FacePass.Kiosk.ViewModels
                                 if (faces.Length == 0)
                                 {
                                     FaceVisible = false;
+                                    _isRecognizing = false;
                                     return;
                                 }
 

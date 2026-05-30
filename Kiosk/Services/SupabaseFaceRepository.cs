@@ -49,6 +49,7 @@ namespace FacePass.Kiosk.Services
             return dict;
         }
 
+        // AFTER (fixed):
         private static IEnumerable<byte[]> ExtractEncodingBytes(JToken? encodingsToken)
         {
             if (encodingsToken == null) yield break;
@@ -57,17 +58,39 @@ namespace FacePass.Kiosk.Services
             {
                 foreach (var entry in arr)
                 {
-                    var b64 = entry["vector_data_bytea"]?.ToString();
-                    if (!string.IsNullOrEmpty(b64))
-                        yield return Convert.FromBase64String(b64);
+                    var raw = entry["vector_data_bytea"]?.ToString();
+                    var bytes = ParseBytea(raw);
+                    if (bytes != null) yield return bytes;
                 }
             }
             else if (encodingsToken is JObject obj)
             {
-                var b64 = obj["vector_data_bytea"]?.ToString();
-                if (!string.IsNullOrEmpty(b64))
-                    yield return Convert.FromBase64String(b64);
+                var raw = obj["vector_data_bytea"]?.ToString();
+                var bytes = ParseBytea(raw);
+                if (bytes != null) yield return bytes;
             }
+        }
+
+        /// <summary>
+        /// Supabase returns bytea as \xHEXSTRING (e.g. "\x0102ABCD").
+        /// Strip the \x prefix and hex-decode to byte[].
+        /// </summary>
+        private static byte[]? ParseBytea(string? raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return null;
+
+            // PostgREST bytea format: \xDEADBEEF
+            if (raw.StartsWith("\\x", StringComparison.OrdinalIgnoreCase))
+            {
+                var hex = raw.Substring(2);
+                if (hex.Length == 0) return null;
+                try { return Convert.FromHexString(hex); }
+                catch { return null; }
+            }
+
+            // Fallback: try Base64 in case an older row was stored that way
+            try { return Convert.FromBase64String(raw); }
+            catch { return null; }
         }
 
         /// <summary>

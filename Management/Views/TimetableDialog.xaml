@@ -39,11 +39,49 @@
             <TextBlock Text="Course" Foreground="#88FFFFFF" Margin="0,15,0,5"/>
             <ComboBox x:Name="CourseCombo" Height="35" DisplayMemberPath="name"/>
 
-            <TextBlock Text="Start Time (e.g. 08:00)" Foreground="#88FFFFFF" Margin="0,15,0,5"/>
-            <TextBox x:Name="StartTimeBox" Height="35"/>
+            <TextBlock Text="Start Time" Foreground="#88FFFFFF" Margin="0,15,0,5"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="80"/>
+                </Grid.ColumnDefinitions>
+                <ComboBox x:Name="StartHourCombo" Grid.Column="0" Height="35"
+                          DisplayMemberPath="." />
+                <TextBlock Grid.Column="1" Text=":" Foreground="White"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           FontSize="18" FontWeight="Bold"/>
+                <ComboBox x:Name="StartMinuteCombo" Grid.Column="2" Height="35"
+                          DisplayMemberPath="." />
+                <ComboBox x:Name="StartAmPmCombo" Grid.Column="4" Height="35">
+                    <ComboBoxItem Content="AM"/>
+                    <ComboBoxItem Content="PM"/>
+                </ComboBox>
+            </Grid>
 
-            <TextBlock Text="End Time (e.g. 09:30)" Foreground="#88FFFFFF" Margin="0,15,0,5"/>
-            <TextBox x:Name="EndTimeBox" Height="35"/>
+            <TextBlock Text="End Time" Foreground="#88FFFFFF" Margin="0,15,0,5"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="80"/>
+                </Grid.ColumnDefinitions>
+                <ComboBox x:Name="EndHourCombo" Grid.Column="0" Height="35"
+                          DisplayMemberPath="." />
+                <TextBlock Grid.Column="1" Text=":" Foreground="White"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           FontSize="18" FontWeight="Bold"/>
+                <ComboBox x:Name="EndMinuteCombo" Grid.Column="2" Height="35"
+                          DisplayMemberPath="." />
+                <ComboBox x:Name="EndAmPmCombo" Grid.Column="4" Height="35">
+                    <ComboBoxItem Content="AM"/>
+                    <ComboBoxItem Content="PM"/>
+                </ComboBox>
+            </Grid>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,30,0,0">
                 <Button Content="Save" Width="100" Height="40" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="Save_Click" BorderThickness="0"/>

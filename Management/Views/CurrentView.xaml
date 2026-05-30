@@ -18,6 +18,32 @@
             </StackPanel>
             
             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
+                <!-- Manual Refresh Button -->
+                <Button x:Name="RefreshButton" Content="↻ Refresh" Click="RefreshButton_Click"
+                        Background="#1E3A2F" Foreground="#00E676" BorderBrush="#00E676" BorderThickness="1"
+                        Padding="10,5" Margin="0,0,14,0" Cursor="Hand" FontSize="13" FontWeight="SemiBold">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background" Value="#1E3A2F"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="6"
+                                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#2A5040"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
                 <Ellipse Width="8" Height="8" Fill="#00E676" Margin="0,0,8,0" VerticalAlignment="Center">
                     <Ellipse.Style>
                         <Style TargetType="Ellipse">

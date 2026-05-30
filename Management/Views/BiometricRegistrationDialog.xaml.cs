@@ -129,13 +129,13 @@ namespace FacePass.Management.Views
                     encodingBytes = ms.ToArray();
                 }
 
-                string base64Encoding = Convert.ToBase64String(encodingBytes);
+                string hexEncoding = "\\x" + Convert.ToHexString(encodingBytes);
 
                 var payload = new JObject
                 {
                     ["student_id"] = _studentId,
-                    ["vector_data_bytea"] = base64Encoding
-                };
+                    ["vector_data_bytea"] = hexEncoding
+                }; 
 
                 using var client = SupabaseRestClient.Create();
                 var request = new HttpRequestMessage(HttpMethod.Post, $"{SupabaseRestClient.BaseUrl}/rest/v1/FACE_ENCODINGS")
