@@ -5,11 +5,11 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   geolocator_windows
+  printing
   url_launcher_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  jni
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

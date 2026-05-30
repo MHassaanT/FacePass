@@ -1,7 +1,7 @@
-using System.Windows;
-using System.Windows.Controls;
 using System.Net.Http;
 using System.Text;
+using System.Windows;
+using System.Windows.Controls;
 using FacePass.Management.Services;
 using Newtonsoft.Json.Linq;
 
@@ -17,6 +17,23 @@ namespace FacePass.Management.Views
             InitializeComponent();
             RefreshUsers_Click(null!, null!);
             RefreshLogs();
+        }
+
+        private static string SelectedHeader(TabControl tabControl)
+        {
+            return tabControl.SelectedItem is TabItem tabItem
+                ? tabItem.Header?.ToString() ?? ""
+                : "";
+        }
+
+        private static async Task DeleteRowAsync(HttpClient client, string url)
+        {
+            var resp = await client.DeleteAsync(url);
+            if (resp.IsSuccessStatusCode)
+                return;
+
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {body}");
         }
 
         private void AddUser_Click(object sender, RoutedEventArgs e)
@@ -41,10 +58,10 @@ namespace FacePass.Management.Views
                 foreach (JObject user in users)
                 {
                     var first = user["first_name"]?.ToString() ?? "";
-                    var last  = user["last_name"]?.ToString()  ?? "";
+                    var last = user["last_name"]?.ToString() ?? "";
                     user["name"] = $"{first} {last}".Trim();
                     user["role"] = JsonEmbedHelper.RoleNameFromUser(user);
-                    user["id"]   = user["user_id"]?.ToString() ?? "";
+                    user["id"] = user["user_id"]?.ToString() ?? "";
                 }
 
                 UsersGrid.ItemsSource = users;
@@ -61,10 +78,6 @@ namespace FacePass.Management.Views
             {
                 using var client = SupabaseRestClient.Create();
 
-                // FIX Bug 2: audit_logs uses actor_id but the column binding on the
-                // DataGrid expects "ActorName", "Timestamp", and "Action"/"Metadata".
-                // The embed hint "USER!actor_id(...)" requires PostgREST to know the
-                // FK name. Use the simpler left-join syntax that works with our anon RLS.
                 var resp = await client.GetAsync(
                     $"{SupabaseRestClient.BaseUrl}/rest/v1/audit_logs" +
                     $"?select=id,actor_id,action,metadata,created_at,USER(first_name,last_name)" +
@@ -75,19 +88,12 @@ namespace FacePass.Management.Views
 
                 foreach (JObject log in logs)
                 {
-                    // Resolve actor name from embedded USER object (may be null for
-                    // system actions where actor_id is null).
                     var actorName = JsonEmbedHelper.FullName(log, "USER");
                     log["ActorName"] = string.IsNullOrEmpty(actorName) || actorName == "Unknown"
                         ? "System Admin"
                         : actorName;
-
-                    // FIX Bug 2: The DataGrid columns bind to "Timestamp", "Action",
-                    // "Metadata". Map created_at → Timestamp so the column shows data.
                     log["Timestamp"] = log["created_at"]?.ToString() ?? "";
-                    // "action" and "metadata" are already lowercase — add capitalised
-                    // aliases so the DataGrid column bindings work regardless of case.
-                    log["Action"]   = log["action"]?.ToString()   ?? "";
+                    log["Action"] = log["action"]?.ToString() ?? "";
                     log["Metadata"] = log["metadata"]?.ToString() ?? "";
                 }
 
@@ -102,7 +108,7 @@ namespace FacePass.Management.Views
         private void UsersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             bool hasSelection = UsersGrid.SelectedItem != null;
-            EditUserBtn.IsEnabled   = hasSelection;
+            EditUserBtn.IsEnabled = hasSelection;
             DeleteUserBtn.IsEnabled = hasSelection;
 
             if (UsersGrid.SelectedItem is JObject selected)
@@ -122,8 +128,8 @@ namespace FacePass.Management.Views
                     return;
                 }
 
-                long   userId = long.Parse(selected["id"]!.ToString());
-                string name   = selected["name"]?.ToString() ?? "";
+                long userId = long.Parse(selected["id"]!.ToString());
+                string name = selected["name"]?.ToString() ?? "";
 
                 var dialog = new StudentAssignmentDialog(userId, name, _currentUserId);
                 dialog.Owner = Window.GetWindow(this);
@@ -147,8 +153,8 @@ namespace FacePass.Management.Views
         {
             if (UsersGrid.SelectedItem is JObject selected)
             {
-                string name  = selected["name"]?.ToString()  ?? "";
-                string id    = selected["id"]?.ToString()    ?? "";
+                string name = selected["name"]?.ToString() ?? "";
+                string id = selected["id"]?.ToString() ?? "";
                 string email = selected["email"]?.ToString() ?? "";
 
                 var result = MessageBox.Show(
@@ -161,31 +167,17 @@ namespace FacePass.Management.Views
                 {
                     using var client = SupabaseRestClient.Create();
 
-                    // FIX Bug 3: Delete child rows in dependency order BEFORE deleting
-                    // the USER row. The 409 Conflict is a FK violation because STUDENTS,
-                    // TEACHERS, COURSE_ENROLLMENTS, and audit_logs all reference USER.
-                    // Step 1 – remove course enrollments for this user (student path)
                     await client.DeleteAsync(
                         $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSE_ENROLLMENTS?student_id=eq.{id}");
-
-                    // Step 2 – remove face encodings
                     await client.DeleteAsync(
                         $"{SupabaseRestClient.BaseUrl}/rest/v1/FACE_ENCODINGS?student_id=eq.{id}");
-
-                    // Step 3 – remove attendance logs
                     await client.DeleteAsync(
                         $"{SupabaseRestClient.BaseUrl}/rest/v1/attendance_logs?student_id=eq.{id}");
-
-                    // Step 4 – remove the STUDENTS profile row (if it exists)
                     await client.DeleteAsync(
                         $"{SupabaseRestClient.BaseUrl}/rest/v1/STUDENTS?student_id=eq.{id}");
-
-                    // Step 5 – remove the TEACHERS profile row (if it exists)
                     await client.DeleteAsync(
                         $"{SupabaseRestClient.BaseUrl}/rest/v1/TEACHERS?teacher_id=eq.{id}");
 
-                    // Step 6 – null-out audit_log actor_ids that reference this user
-                    // so the audit history is preserved but the FK is released.
                     var nullActor = new JObject { ["actor_id"] = null };
                     var patchReq = new HttpRequestMessage(new HttpMethod("PATCH"),
                         $"{SupabaseRestClient.BaseUrl}/rest/v1/audit_logs?actor_id=eq.{id}")
@@ -194,16 +186,14 @@ namespace FacePass.Management.Views
                     };
                     await client.SendAsync(patchReq);
 
-                    // Step 7 – finally delete the USER row
                     var deleteResp = await client.DeleteAsync(
                         $"{SupabaseRestClient.BaseUrl}/rest/v1/USER?user_id=eq.{id}");
                     deleteResp.EnsureSuccessStatusCode();
 
-                    // Audit the deletion
                     var logPayload = new JObject
                     {
                         ["actor_id"] = _currentUserId == 0 ? JValue.CreateNull() : (JToken)_currentUserId,
-                        ["action"]   = "DELETE_USER",
+                        ["action"] = "DELETE_USER",
                         ["metadata"] = $"Deleted user: {name} ({email})"
                     };
                     await client.PostAsync(
@@ -220,12 +210,343 @@ namespace FacePass.Management.Views
             }
         }
 
+        private void DepartmentsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool hasSelection = DepartmentsGrid.SelectedItem != null;
+            EditDepartmentBtn.IsEnabled = hasSelection;
+            DeleteDepartmentBtn.IsEnabled = hasSelection;
+        }
+
+        private void BuildingsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool hasSelection = BuildingsGrid.SelectedItem != null;
+            EditBuildingBtn.IsEnabled = hasSelection;
+            DeleteBuildingBtn.IsEnabled = hasSelection;
+        }
+
+        private void ClassroomsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool hasSelection = ClassroomsGrid.SelectedItem != null;
+            EditClassroomBtn.IsEnabled = hasSelection;
+            DeleteClassroomBtn.IsEnabled = hasSelection;
+        }
+
+        private void CoursesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool hasSelection = CoursesGrid.SelectedItem != null;
+            EditCourseBtn.IsEnabled = hasSelection;
+            DeleteCourseBtn.IsEnabled = hasSelection;
+        }
+
+        private async void RefreshDepartments_Click(object sender, RoutedEventArgs e) => await RefreshDepartments();
+
+        private async Task RefreshDepartments()
+        {
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                var resp = await client.GetAsync(
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/DEPARTMENT?select=*&order=department_name.asc");
+                resp.EnsureSuccessStatusCode();
+
+                var departments = JArray.Parse(await resp.Content.ReadAsStringAsync());
+                DepartmentsGrid.ItemsSource = departments;
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Department Fetch Error: {ex.Message}");
+            }
+        }
+
+        private async void RefreshBuildings_Click(object sender, RoutedEventArgs e) => await RefreshBuildings();
+
+        private async Task RefreshBuildings()
+        {
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                var resp = await client.GetAsync(
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/BUILDINGS?select=*&order=building_name.asc");
+                resp.EnsureSuccessStatusCode();
+
+                var buildings = JArray.Parse(await resp.Content.ReadAsStringAsync());
+                foreach (JObject building in buildings)
+                    building["location_coordinates"] = building["location_coordinates"]?.ToString() ?? "";
+
+                BuildingsGrid.ItemsSource = buildings;
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Building Fetch Error: {ex.Message}");
+            }
+        }
+
+        private async void RefreshClassrooms_Click(object sender, RoutedEventArgs e) => await RefreshClassrooms();
+
+        private async Task RefreshClassrooms()
+        {
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                var resp = await client.GetAsync(
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/CLASSROOMS?select=*,BUILDINGS(building_name)&order=room_number.asc");
+                resp.EnsureSuccessStatusCode();
+
+                var classrooms = JArray.Parse(await resp.Content.ReadAsStringAsync());
+                foreach (JObject classroom in classrooms)
+                {
+                    classroom["building_name"] = JsonEmbedHelper.GetField(classroom, "BUILDINGS", "building_name");
+                    if (string.IsNullOrWhiteSpace(classroom["building_name"]?.ToString()))
+                        classroom["building_name"] = "Unassigned";
+                    classroom["capacity"] = classroom["capacity"]?.ToString() ?? "";
+                }
+
+                ClassroomsGrid.ItemsSource = classrooms;
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Classroom Fetch Error: {ex.Message}");
+            }
+        }
+
+        private async void RefreshCourses_Click(object sender, RoutedEventArgs e) => await RefreshCourses();
+
+        private async Task RefreshCourses()
+        {
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                var resp = await client.GetAsync(
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSES?select=*,DEPARTMENT(department_name),TEACHERS(USER(first_name,last_name))&order=course_name.asc");
+                resp.EnsureSuccessStatusCode();
+
+                var courses = JArray.Parse(await resp.Content.ReadAsStringAsync());
+                foreach (JObject course in courses)
+                {
+                    course["department_name"] = JsonEmbedHelper.GetField(course, "DEPARTMENT", "department_name");
+                    if (string.IsNullOrWhiteSpace(course["department_name"]?.ToString()))
+                        course["department_name"] = "Unknown";
+
+                    var teacherName = JsonEmbedHelper.FullName(course, "TEACHERS", "USER");
+                    course["teacher_name"] = string.IsNullOrWhiteSpace(teacherName) || teacherName == "Unknown"
+                        ? "Unassigned"
+                        : teacherName;
+
+                    course["course_code"] = course["course_code"]?.ToString() ?? "";
+                }
+
+                CoursesGrid.ItemsSource = courses;
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Course Fetch Error: {ex.Message}");
+            }
+        }
+
+        private void AddDepartment_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new DepartmentDialog();
+            dialog.Owner = Window.GetWindow(this);
+            if (dialog.ShowDialog() == true)
+                _ = RefreshDepartments();
+        }
+
+        private void EditDepartment_Click(object sender, RoutedEventArgs e)
+        {
+            if (DepartmentsGrid.SelectedItem is JObject selected)
+            {
+                var dialog = new DepartmentDialog(selected);
+                dialog.Owner = Window.GetWindow(this);
+                if (dialog.ShowDialog() == true)
+                    _ = RefreshDepartments();
+            }
+        }
+
+        private async void DeleteDepartment_Click(object sender, RoutedEventArgs e)
+        {
+            if (DepartmentsGrid.SelectedItem is not JObject selected)
+                return;
+
+            string id = selected["department_id"]?.ToString() ?? "";
+            string name = selected["department_name"]?.ToString() ?? "this department";
+
+            if (MessageBox.Show($"Delete department '{name}'?", "Confirm Delete",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                await DeleteRowAsync(client,
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/DEPARTMENT?department_id=eq.{id}");
+                await RefreshDepartments();
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Delete Error: {ex.Message}");
+            }
+        }
+
+        private void AddBuilding_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new BuildingDialog();
+            dialog.Owner = Window.GetWindow(this);
+            if (dialog.ShowDialog() == true)
+                _ = RefreshBuildings();
+        }
+
+        private void EditBuilding_Click(object sender, RoutedEventArgs e)
+        {
+            if (BuildingsGrid.SelectedItem is JObject selected)
+            {
+                var dialog = new BuildingDialog(selected);
+                dialog.Owner = Window.GetWindow(this);
+                if (dialog.ShowDialog() == true)
+                    _ = RefreshBuildings();
+            }
+        }
+
+        private async void DeleteBuilding_Click(object sender, RoutedEventArgs e)
+        {
+            if (BuildingsGrid.SelectedItem is not JObject selected)
+                return;
+
+            string id = selected["building_id"]?.ToString() ?? "";
+            string name = selected["building_name"]?.ToString() ?? "this building";
+
+            if (MessageBox.Show($"Delete building '{name}'?", "Confirm Delete",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                await DeleteRowAsync(client,
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/BUILDINGS?building_id=eq.{id}");
+                await RefreshBuildings();
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Delete Error: {ex.Message}");
+            }
+        }
+
+        private void AddClassroom_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new ClassroomDialog();
+            dialog.Owner = Window.GetWindow(this);
+            if (dialog.ShowDialog() == true)
+                _ = RefreshClassrooms();
+        }
+
+        private void EditClassroom_Click(object sender, RoutedEventArgs e)
+        {
+            if (ClassroomsGrid.SelectedItem is JObject selected)
+            {
+                var dialog = new ClassroomDialog(selected);
+                dialog.Owner = Window.GetWindow(this);
+                if (dialog.ShowDialog() == true)
+                    _ = RefreshClassrooms();
+            }
+        }
+
+        private async void DeleteClassroom_Click(object sender, RoutedEventArgs e)
+        {
+            if (ClassroomsGrid.SelectedItem is not JObject selected)
+                return;
+
+            string id = selected["classroom_id"]?.ToString() ?? "";
+            string room = selected["room_number"]?.ToString() ?? "this classroom";
+
+            if (MessageBox.Show($"Delete classroom '{room}'?", "Confirm Delete",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                await DeleteRowAsync(client,
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/CLASSROOMS?classroom_id=eq.{id}");
+                await RefreshClassrooms();
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Delete Error: {ex.Message}");
+            }
+        }
+
+        private void AddCourse_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new CourseDialog();
+            dialog.Owner = Window.GetWindow(this);
+            if (dialog.ShowDialog() == true)
+                _ = RefreshCourses();
+        }
+
+        private void EditCourse_Click(object sender, RoutedEventArgs e)
+        {
+            if (CoursesGrid.SelectedItem is JObject selected)
+            {
+                var dialog = new CourseDialog(selected);
+                dialog.Owner = Window.GetWindow(this);
+                if (dialog.ShowDialog() == true)
+                    _ = RefreshCourses();
+            }
+        }
+
+        private async void DeleteCourse_Click(object sender, RoutedEventArgs e)
+        {
+            if (CoursesGrid.SelectedItem is not JObject selected)
+                return;
+
+            string id = selected["course_id"]?.ToString() ?? "";
+            string name = selected["course_name"]?.ToString() ?? "this course";
+
+            if (MessageBox.Show($"Delete course '{name}'?", "Confirm Delete",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                using var client = SupabaseRestClient.Create();
+                await DeleteRowAsync(client,
+                    $"{SupabaseRestClient.BaseUrl}/rest/v1/COURSES?course_id=eq.{id}");
+                await RefreshCourses();
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"Delete Error: {ex.Message}");
+            }
+        }
+
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (e.Source is TabControl tabControl)
+            if (e.Source is not TabControl tabControl)
+                return;
+
+            switch (SelectedHeader(tabControl))
             {
-                if (tabControl.SelectedIndex == 1)      RefreshLogs();
-                else if (tabControl.SelectedIndex == 2) RefreshTimetable();
+                case "User Management":
+                    RefreshUsers_Click(null!, null!);
+                    break;
+                case "Departments":
+                    _ = RefreshDepartments();
+                    break;
+                case "Buildings":
+                    _ = RefreshBuildings();
+                    break;
+                case "Classrooms":
+                    _ = RefreshClassrooms();
+                    break;
+                case "Courses":
+                    _ = RefreshCourses();
+                    break;
+                case "Audit Logs":
+                    RefreshLogs();
+                    break;
+                case "Timetable":
+                    RefreshTimetable();
+                    break;
             }
         }
 

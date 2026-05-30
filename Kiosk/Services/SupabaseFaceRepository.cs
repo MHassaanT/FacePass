@@ -131,7 +131,8 @@ namespace FacePass.Kiosk.Services
                 ["course_id"]    = courseId,
                 ["classroom_id"] = classroomId,
                 ["method_id"]    = methodId,
-                ["status_id"]    = statusId
+                ["status_id"]    = statusId,
+                ["timestamp"] = DateTime.UtcNow.ToString("o")
             };
 
             if (!string.IsNullOrEmpty(flaggedReason))

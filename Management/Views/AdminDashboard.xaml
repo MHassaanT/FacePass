@@ -26,6 +26,112 @@
             </Grid>
         </TabItem>
 
+        <TabItem Header="Departments" Foreground="White">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,15">
+                    <Button Content="+ Add Department" Width="130" Height="30" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="AddDepartment_Click"/>
+                    <Button x:Name="EditDepartmentBtn" Content="Edit Selected" Width="110" Height="30" Margin="10,0" Background="#1565C0" Foreground="White" FontWeight="Bold" Click="EditDepartment_Click" IsEnabled="False"/>
+                    <Button x:Name="DeleteDepartmentBtn" Content="Delete Selected" Width="120" Height="30" Background="#C62828" Foreground="White" FontWeight="Bold" Click="DeleteDepartment_Click" IsEnabled="False"/>
+                    <Button Content="Refresh" Width="80" Height="30" Margin="10,0,0,0" Background="#333" Foreground="White" Click="RefreshDepartments_Click"/>
+                </StackPanel>
+
+                <DataGrid x:Name="DepartmentsGrid" Grid.Row="1" Background="#111" Foreground="White"
+                          BorderBrush="#333" RowBackground="#1A1A1A" AutoGenerateColumns="False"
+                          CanUserAddRows="False" IsReadOnly="True" SelectionChanged="DepartmentsGrid_SelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Department ID" Binding="{Binding department_id}" Width="120"/>
+                        <DataGridTextColumn Header="Department Name" Binding="{Binding department_name}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </TabItem>
+
+        <TabItem Header="Buildings" Foreground="White">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,15">
+                    <Button Content="+ Add Building" Width="120" Height="30" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="AddBuilding_Click"/>
+                    <Button x:Name="EditBuildingBtn" Content="Edit Selected" Width="110" Height="30" Margin="10,0" Background="#1565C0" Foreground="White" FontWeight="Bold" Click="EditBuilding_Click" IsEnabled="False"/>
+                    <Button x:Name="DeleteBuildingBtn" Content="Delete Selected" Width="120" Height="30" Background="#C62828" Foreground="White" FontWeight="Bold" Click="DeleteBuilding_Click" IsEnabled="False"/>
+                    <Button Content="Refresh" Width="80" Height="30" Margin="10,0,0,0" Background="#333" Foreground="White" Click="RefreshBuildings_Click"/>
+                </StackPanel>
+
+                <DataGrid x:Name="BuildingsGrid" Grid.Row="1" Background="#111" Foreground="White"
+                          BorderBrush="#333" RowBackground="#1A1A1A" AutoGenerateColumns="False"
+                          CanUserAddRows="False" IsReadOnly="True" SelectionChanged="BuildingsGrid_SelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Building ID" Binding="{Binding building_id}" Width="110"/>
+                        <DataGridTextColumn Header="Building Name" Binding="{Binding building_name}" Width="*"/>
+                        <DataGridTextColumn Header="Coordinates" Binding="{Binding location_coordinates}" Width="220"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </TabItem>
+
+        <TabItem Header="Classrooms" Foreground="White">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,15">
+                    <Button Content="+ Add Classroom" Width="125" Height="30" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="AddClassroom_Click"/>
+                    <Button x:Name="EditClassroomBtn" Content="Edit Selected" Width="110" Height="30" Margin="10,0" Background="#1565C0" Foreground="White" FontWeight="Bold" Click="EditClassroom_Click" IsEnabled="False"/>
+                    <Button x:Name="DeleteClassroomBtn" Content="Delete Selected" Width="120" Height="30" Background="#C62828" Foreground="White" FontWeight="Bold" Click="DeleteClassroom_Click" IsEnabled="False"/>
+                    <Button Content="Refresh" Width="80" Height="30" Margin="10,0,0,0" Background="#333" Foreground="White" Click="RefreshClassrooms_Click"/>
+                </StackPanel>
+
+                <DataGrid x:Name="ClassroomsGrid" Grid.Row="1" Background="#111" Foreground="White"
+                          BorderBrush="#333" RowBackground="#1A1A1A" AutoGenerateColumns="False"
+                          CanUserAddRows="False" IsReadOnly="True" SelectionChanged="ClassroomsGrid_SelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Classroom ID" Binding="{Binding classroom_id}" Width="110"/>
+                        <DataGridTextColumn Header="Room #" Binding="{Binding room_number}" Width="90"/>
+                        <DataGridTextColumn Header="Building Name" Binding="{Binding building_name}" Width="*"/>
+                        <DataGridTextColumn Header="Capacity" Binding="{Binding capacity}" Width="90"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </TabItem>
+
+        <TabItem Header="Courses" Foreground="White">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,15">
+                    <Button Content="+ Add Course" Width="110" Height="30" Background="#00E676" Foreground="Black" FontWeight="Bold" Click="AddCourse_Click"/>
+                    <Button x:Name="EditCourseBtn" Content="Edit Selected" Width="110" Height="30" Margin="10,0" Background="#1565C0" Foreground="White" FontWeight="Bold" Click="EditCourse_Click" IsEnabled="False"/>
+                    <Button x:Name="DeleteCourseBtn" Content="Delete Selected" Width="120" Height="30" Background="#C62828" Foreground="White" FontWeight="Bold" Click="DeleteCourse_Click" IsEnabled="False"/>
+                    <Button Content="Refresh" Width="80" Height="30" Margin="10,0,0,0" Background="#333" Foreground="White" Click="RefreshCourses_Click"/>
+                </StackPanel>
+
+                <DataGrid x:Name="CoursesGrid" Grid.Row="1" Background="#111" Foreground="White"
+                          BorderBrush="#333" RowBackground="#1A1A1A" AutoGenerateColumns="False"
+                          CanUserAddRows="False" IsReadOnly="True" SelectionChanged="CoursesGrid_SelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Course ID" Binding="{Binding course_id}" Width="100"/>
+                        <DataGridTextColumn Header="Course Name" Binding="{Binding course_name}" Width="*"/>
+                        <DataGridTextColumn Header="Code" Binding="{Binding course_code}" Width="90"/>
+                        <DataGridTextColumn Header="Department" Binding="{Binding department_name}" Width="170"/>
+                        <DataGridTextColumn Header="Teacher" Binding="{Binding teacher_name}" Width="190"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </TabItem>
+
         <!-- Audit Logs Tab -->
         <TabItem Header="Audit Logs" Foreground="White">
             <Grid Margin="10">

@@ -173,8 +173,6 @@ namespace FacePass.Management.Views
             {
                 using var client = SupabaseRestClient.Create();
 
-                // Use local date so records from midnight local time are included,
-                // regardless of the server's UTC offset.
                 var todayStr = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
                 var url = $"{SupabaseRestClient.BaseUrl}/rest/v1/attendance_logs" +
                           $"?select=*,STUDENTS(USER(first_name,last_name))" +
@@ -187,19 +185,27 @@ namespace FacePass.Management.Views
                 var json = await resp.Content.ReadAsStringAsync();
                 var logs = JArray.Parse(json);
 
+                // Keep only the latest log per student (logs are DESC so first hit = latest)
+                var latestPerStudent = new Dictionary<long, JObject>();
+                foreach (JObject log in logs)
+                {
+                    var sid = log["student_id"]?.Value<long>() ?? -1;
+                    if (sid == -1) continue;
+                    if (!latestPerStudent.ContainsKey(sid))
+                        latestPerStudent[sid] = log;
+                }
+
                 var list = new JArray();
                 int presentCount = 0;
 
-                foreach (JObject log in logs)
+                foreach (var log in latestPerStudent.Values)
                 {
                     var name = JsonEmbedHelper.FullName(log, "STUDENTS", "USER");
                     if (name == "Unknown") name = "Unknown Student";
-                    
+
                     var timeStr = log["timestamp"]?.ToString() ?? "";
                     if (DateTime.TryParse(timeStr, out var timestamp))
-                    {
                         timeStr = timestamp.ToLocalTime().ToString("hh:mm:ss tt");
-                    }
 
                     var methodId = log["method_id"]?.Value<int>() ?? 0;
                     var methodStr = MethodNames.GetValueOrDefault(methodId, "N/A");
@@ -224,9 +230,7 @@ namespace FacePass.Management.Views
                     };
 
                     if (statusStr == "present" || statusStr == "manual_override")
-                    {
                         presentCount++;
-                    }
 
                     var flatLog = new JObject
                     {
